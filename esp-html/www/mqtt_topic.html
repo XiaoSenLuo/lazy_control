@@ -1,0 +1,53 @@
+<!DOCTYPE HTML>
+<html lang="en">
+   <head>
+      <title>ESP8266</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta charset="UTF-8" />
+      <script>
+         addEventListener("load", function () {
+         	setTimeout(hideURLbar, 0);
+         }, false);
+         
+         function hideURLbar() {
+         	window.scrollTo(0, 1);
+         }
+      </script>
+      <link rel="stylesheet" href="css/style.css" type="text/css" media="all" />
+   </head>
+   <body>
+      <h1 class="header-w3ls">MQTT Topic Config</h1>
+      <div class="porduct-order-agile">
+         <form action="/mqtt_topic_cfg" method="post">
+            <div class="form-group">
+               <p>Topic</p>
+               <input type="text" name="mqtt_topic" placeholder="#" required="">
+            </div>
+            <div class="main">
+               <div class="form-left-to-w3l">
+                  <p>QoS</p>
+                  <select class="form-control buttom" name="topic_qos">
+                     <option value="0">QoS 0:At most once</option>
+                     <option value="1">QoS 1:At least once</option>
+                     <option value="2">QoS 2:Exactly once</option>
+                  </select>
+               </div>
+               <div class="form-left-to-w3l">
+                  <p>Type</p>
+                  <select class="form-control buttom" name="topic_type">
+                     <option value="0">Subscribe</option>
+                     <option value="1">Publish</option>
+                     <option value="2">All</option>
+                  </select>
+               </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+         </form>
+      </div>
+      <div class="copy">
+         <p>&copy; 2018 Item Order Form. All rights reserved | Design by
+            <a href="http://w3layouts.com">W3layouts</a>
+         </p>
+      </div>
+   </body>
+</html>

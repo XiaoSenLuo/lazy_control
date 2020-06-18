@@ -1,0 +1,38 @@
+<!DOCTYPE HTML>
+<html lang="en">
+   <head>
+      <title>ESP8266</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta charset="UTF-8" />
+      <script>
+         addEventListener("load", function () {
+         	setTimeout(hideURLbar, 0);
+         }, false);
+         function hideURLbar() {
+         	window.scrollTo(0, 1);
+         }
+      </script>
+      <link rel="stylesheet" href="css/style.css" type="text/css" media="all" />
+   </head>
+   <body>
+      <h1 class="header-w3ls">WiFi Config</h1>
+      <div class="porduct-order-agile">
+         <form action="/wifi_save" method="post">
+            <div class="form-group">
+               <p>SSID</p>
+               <input type="text" name="wifi_ssid" value="" placeholder="" required="">
+            </div>
+            <div class="form-group">
+               <p>Password </p>
+               <input type="text" name="wifi_passwd" value="" placeholder="">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+         </form>
+      </div>
+      <div class="copy">
+         <p>&copy; 2018 Item Order Form. All rights reserved | Design by
+            <a href="http://w3layouts.com">W3layouts</a>
+         </p>
+      </div>
+   </body>
+</html>

@@ -1,7 +1,8 @@
 
 build/
-.vscode/
-.idea/
+#.vscode/
+#.idea/
 *.old
 CMakeCache.txt
 *.bin
+assets/

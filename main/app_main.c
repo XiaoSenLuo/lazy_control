@@ -120,6 +120,11 @@ int string2Int(char* str, int* num){
     return n;
 }
 
+int int2String(char* des, size_t dl, int num){
+    snprintf(des, dl, "%d", num);
+    return num;
+}
+
 esp_err_t save_data_to_nvs(const char* namespace, const char* key, void* data, size_t data_size){
     nvs_handle n_nvs_handle;
     esp_err_t err;

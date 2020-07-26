@@ -5,8 +5,8 @@
 
 static const char *TAG="## WIFI ##";
 
-#define WIFI_CONNECT_RETRY                           3
-static uint8_t wifi_connect_retry = WIFI_CONNECT_RETRY;
+#define WIFI_CONNECT_RETRY                           5
+static int8_t wifi_connect_retry = WIFI_CONNECT_RETRY;
 
 EventGroupHandle_t wifi_event_group = NULL;
 const EventBits_t WIFI_DISCONNECT_BIT = BIT0;
@@ -43,21 +43,40 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
-        ESP_LOGE(TAG, "Disconnect reason : %d", info->disconnected.reason);
+        ESP_LOGE(TAG, "disconnect reason : %d", info->disconnected.reason);
         if (info->disconnected.reason == WIFI_REASON_BASIC_RATE_NOT_SUPPORT) {
             /*Switch to 802.11 bgn mode */
             esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
         }
-        if((--wifi_connect_retry) != 0){
+        if((--wifi_connect_retry) > 0){
             ESP_ERROR_CHECK(esp_wifi_connect());
         }else{                                //达到最大重连次数, 重启wifi
             delete_mqtt_connect_to_broker_task();
-            wifi_connect_retry = WIFI_CONNECT_RETRY;
             ESP_ERROR_CHECK(esp_wifi_stop());
-            ESP_LOGI(TAG, "Restart Wifi...............");
-            xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);
+            create_wifi_reconnect_task(NULL, 5);
+            if((info->disconnected.reason != WIFI_REASON_NO_AP_FOUND) && (info->disconnected.reason != WIFI_REASON_AUTH_FAIL)){
+                ESP_LOGI(TAG, "restart Wifi...............");
+                wifi_connect_retry = WIFI_CONNECT_RETRY;
+                xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);
+                // create_wifi_reconnect_task(NULL, 5);          
+            }else{  //未找到指定SSID AP 或者验证错误
+                wifi_connect_retry = 0;
+                wifi_config_t ap_config = {
+                    .ap = {
+                        .ssid = "ESPConfig",
+                        .ssid_len = strlen("ESPConfig"),
+                        .password = "",
+                        .authmode = WIFI_AUTH_OPEN,
+                        .max_connection = 2,
+                    },
+                };
+                if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
+                ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));  
+                ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
+                ESP_LOGI(TAG, "NOT FOUND STA OR AUTH ERROR, START CONFIG AP");
+                xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);              
+            }
         }
-        create_wifi_reconnect_task(NULL, 5);
         break;
     case SYSTEM_EVENT_AP_START:
         // xEventGroupSetBits(http_event_group, HTTP_SERVER_START_BIT);
@@ -105,13 +124,12 @@ void wifi_reconnect_task(void* parm){
      
     while (true){
          /* code */
-        xEventGroupWaitBits(wifi_event_group, WIFI_DISCONNECT_BIT, false, true, portMAX_DELAY);
+        xEventGroupWaitBits(wifi_event_group, WIFI_DISCONNECT_BIT, true, true, portMAX_DELAY);
         vTaskDelay(1000);
-        ESP_LOGI(TAG, "ESP Reconnecting to AP.....");
+        ESP_LOGI(TAG, "ESP STARTING WiFi.....");
         ESP_ERROR_CHECK(esp_wifi_start());
         
     }
-     
 }
 
 void initialise_wifi(void *arg)
@@ -156,7 +174,7 @@ void initialise_wifi(void *arg)
                 .ssid_len = strlen("ESPConfig"),
                 .password = "",
                 .authmode = WIFI_AUTH_WPA2_PSK,
-                .max_connection = 10,
+                .max_connection = 2,
             },
         };
         if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;

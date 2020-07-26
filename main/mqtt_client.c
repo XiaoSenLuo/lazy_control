@@ -6,6 +6,11 @@
 #define Q_MQTT_CLIENT_SIZE    4
 #define MQTT_CONNECT_RETRY    5
 
+
+#define MQTT_TOPIC_GPIO            "/gpio"
+#define MQTT_TOPIC_TIMER           "/timer"
+
+
 static const char *TAG="## MQTT ##";
 
 
@@ -194,24 +199,31 @@ void mqtt_event_recv_task(void* parm){
                 // printf("Task Receive TOPIC=%.*s  | DATA=%.*s | msg_id=%d\r\n", event->topic_len, event->topic, event->data_len, event->data, event->msg_id);
                 printf("Task Receive TOPIC(len=%d)=%s  | DATA(len=%d)=%s | msg_id=%d\r\n", event->topic_len, event->topic, event->data_len, event->data, event->msg_id);
                 memset(topic_path, 0, sizeof(topic_path));
-                strncpy(topic_path, &(event->topic[path_prefix_len]), (strlen(event->topic) - path_prefix_len));
+                strncpy(topic_path, &(event->topic[path_prefix_len]), (strlen(event->topic) - path_prefix_len));   
                 ESP_LOGI(TAG, "Topic:%s", topic_path);
-                if(strcmp(MQTT_TOPIC_CONTROL_0, (const char*)topic_path) == 0){
-                    if(strcmp("0", (const char*)event->data) == 0){
-                        ESP_LOGI(TAG, "Close Control-0");
-                        gpio_set_level(GPIO_4, 0);
-                    }else if(strcmp("1", (const char*)event->data) == 0){
-                        ESP_LOGI(TAG, "Open Control-0");
-                        gpio_set_level(GPIO_4, 1);
-                    }
-                }
-                if(strcmp(MQTT_TOPIC_CONTROL_1, (const char*)topic_path) == 0){
-                    if(strcmp("0", (const char*)event->data) == 0){
-                        ESP_LOGI(TAG, "Close Control-1");
-                        gpio_set_level(GPIO_5, 0);
-                    }else if(strcmp("1", (const char*)event->data) == 0){
-                        ESP_LOGI(TAG, "Open Control-1");
-                        gpio_set_level(GPIO_5, 1);
+                if(strncmp(MQTT_TOPIC_GPIO, (const char*)topic_path, strlen(MQTT_TOPIC_GPIO)) == 0){
+                    int i_gpio_pin;
+                    string2Int(&(topic_path[strlen(MQTT_TOPIC_GPIO) + 1]), &i_gpio_pin);
+                    ESP_LOGI(TAG, "GPIO:%d", i_gpio_pin);
+                    switch(i_gpio_pin){
+                        case GPIO_4:
+                            if(strcmp("0", (const char*)event->data) == 0){
+                                ESP_LOGI(TAG, "GPIO-4 Status:0");
+                                gpio_set_level(GPIO_4, 0);
+                            }else if(strcmp("1", (const char*)event->data) == 0){
+                                ESP_LOGI(TAG, "GPIO-4 Satus:1");
+                                gpio_set_level(GPIO_4, 1);
+                            }
+                        break;
+                        case GPIO_5:
+                            if(strcmp("0", (const char*)event->data) == 0){
+                                ESP_LOGI(TAG, "GPIO-5 Status:0");
+                                gpio_set_level(GPIO_5, 0);
+                            }else if(strcmp("1", (const char*)event->data) == 0){
+                                ESP_LOGI(TAG, "GPIO-5 Satus:1");
+                                gpio_set_level(GPIO_5, 1);
+                            }
+                        break;
                     }
                 }
                 break;
@@ -259,23 +271,31 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             }
             free(topic_path);
 
-            topic_path_len = strlen(MQTT_TOPIC_BASE_PATH) + strlen(MQTT_TOPIC_CONTROL_0) + sizeof(e_chip_info.base_mac) + 2;
+            topic_path_len = strlen(MQTT_TOPIC_BASE_PATH)+ sizeof(e_chip_info.base_mac) + 1 + strlen(MQTT_TOPIC_GPIO) + 2 + 2;
             topic_path = malloc(topic_path_len);
             if(topic_path != NULL){
                 strcpy(topic_path, MQTT_TOPIC_BASE_PATH);
                 strcat(topic_path, e_chip_info.base_mac);
-                strcat(topic_path, MQTT_TOPIC_CONTROL_0);                     // 创建 topic path
+                strcat(topic_path, MQTT_TOPIC_GPIO);                     // 创建 topic path
+                char gpio_pin[4] = {0};
+                int2String(gpio_pin, sizeof(gpio_pin), GPIO_4);
+                strcat(topic_path, "/");
+                strcat(topic_path, gpio_pin);
                 msg_id = esp_mqtt_client_subscribe(client, (const char*)topic_path, 1);
                 ESP_LOGI("## MQTT ##", "sent subscribe successful, msg_id=%d", msg_id);
             }
             free(topic_path);
 
-            topic_path_len = strlen(MQTT_TOPIC_BASE_PATH) + strlen(MQTT_TOPIC_CONTROL_1) + sizeof(e_chip_info.base_mac) + 2;
+            topic_path_len = strlen(MQTT_TOPIC_BASE_PATH)+ sizeof(e_chip_info.base_mac) + 1 + strlen(MQTT_TOPIC_GPIO) + 2 + 2;
             topic_path = malloc(topic_path_len);
             if(topic_path != NULL){
                 strcpy(topic_path, MQTT_TOPIC_BASE_PATH);
                 strcat(topic_path, e_chip_info.base_mac);
-                strcat(topic_path, MQTT_TOPIC_CONTROL_1);                     // 创建 topic path
+                strcat(topic_path, MQTT_TOPIC_GPIO);                     // 创建 topic path
+                char gpio_pin[4] = {0};
+                int2String(gpio_pin, sizeof(gpio_pin), GPIO_5);
+                strcat(topic_path, "/");
+                strcat(topic_path, gpio_pin);
                 msg_id = esp_mqtt_client_subscribe(client, (const char*)topic_path, 1);
                 ESP_LOGI("## MQTT ##", "sent subscribe successful, msg_id=%d", msg_id);
             }

@@ -56,6 +56,7 @@ extern "C"{
 size_t get_file_size(const char * file, size_t* file_size, int* err);
 void get_config_from_url(const char* config_data, const char* config_key, uint8_t* value, uint8_t value_len);
 int string2Int(char* str, int* num);
+int int2String(char* des, size_t dl, int num);
 esp_err_t save_data_to_nvs(const char* namespace, const char* key, void* data, size_t data_size);
 esp_err_t read_data_from_nvs(const char* namespace, const char* key, void* data, size_t data_size);
 esp_err_t reset_nvs_all(void);
@@ -90,10 +91,10 @@ extern e_chip_info_t e_chip_info;
 
 // #define MQTT_BROKER_URL "mqtt.flespi.io"
 // #define MQTT_BROKER_USERNAME "vSvy3tP5RfCcZTqigojCUmPAAoRSTqAe9TC0cfTRklU738f9mpz4zcsYq9G9p4bm"
-#define MQTT_TOPIC_BASE_PATH                   "/topic/esp8266/mac/"
+#define MQTT_TOPIC_BASE_PATH                   "/topic/esp8266/esp-12f/mac/"
 #define MQTT_TOPIC_DEVICE_INFO                 "/chip_info"
-#define MQTT_TOPIC_CONTROL_0                   "/control0"
-#define MQTT_TOPIC_CONTROL_1                   "/control1"
+// #define MQTT_TOPIC_CONTROL_0                   "/control0"
+// #define MQTT_TOPIC_CONTROL_1                   "/control1"
 
 #define MQTT_CONFIG_NAMESPACE                  "mqtt_config"
 #define MQTT_CONFIG_KEY                        "mqtt_config"

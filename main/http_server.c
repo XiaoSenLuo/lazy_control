@@ -10,7 +10,7 @@ static const char *TAG="## HTTPD ##";
 static QueueHandle_t q_http_req = NULL;
 
 static httpd_handle_t http_server_handle = NULL;
-EventGroupHandle_t http_event_group = NULL;
+static EventGroupHandle_t http_event_group = NULL;
 
 static TaskHandle_t http_server_task_handle = NULL;
 static TaskHandle_t http_req_handle_task_handle = NULL;
@@ -408,7 +408,6 @@ httpd_handle_t start_webserver(httpd_handle_t* server)
 void http_server_task(void* parm){
     
     EventBits_t uBit;
-    http_event_group = xEventGroupCreate();
 
     while(true){
         uBit = xEventGroupWaitBits(http_event_group, HTTP_SERVER_START_BIT | HTTP_SERVER_STOP_BIT, true, false, portMAX_DELAY);
@@ -425,6 +424,9 @@ void http_server_task(void* parm){
 
 void create_http_server_task(void * const pvParameters, UBaseType_t uxPriority){
     BaseType_t xReturn = pdFAIL;
+
+    http_event_group = xEventGroupCreate();
+
     if(http_server_handle == NULL){
         xReturn = xTaskCreate(http_server_task, "http_server_task", 1024, pvParameters, uxPriority, &http_server_task_handle);
         if(xReturn != pdPASS){

@@ -25,16 +25,26 @@ static const EventBits_t ESP_RESTART_BIT = BIT31;
 
 e_chip_info_t e_chip_info;
 
+static TimerHandle_t led_status_timer_handle = NULL;
+static int8_t led_blink_freq = -1;
+static uint32_t timer_callback_count = 0;
+static void timer_callback(void);
+
+void set_led_blink_freq(int8_t freq){
+    if(freq > 10) freq = 10;
+    led_blink_freq = freq;
+}
+
 static void phripherals_initialise(void){
     gpio_config_t io_config;
 
-    io_config.pin_bit_mask = ((1ULL << GPIO_4) | (1ULL << GPIO_5));
+    io_config.pin_bit_mask = ((1ULL << GPIO_NUM_4));
     io_config.mode = GPIO_MODE_OUTPUT;
     io_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
     io_config.pull_up_en = GPIO_PULLUP_DISABLE;
     io_config.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&io_config);
-    
+
     // // 1. init adc
     adc_config_t adc_config;
 
@@ -43,7 +53,6 @@ static void phripherals_initialise(void){
     adc_config.mode = ADC_READ_VDD_MODE;
     adc_config.clk_div = 8; // ADC sample collection clock = 80MHz/clk_div = 10MHz
     ESP_ERROR_CHECK(adc_init(&adc_config));   
-
 }
 
 
@@ -185,6 +194,7 @@ void get_fota_config_from_url(char* buf, fota_config_t* fota_cfg){
     free(src_data);
 }
 
+
 static void spiffs_initialise(void){
     esp_vfs_spiffs_conf_t conf = {
       .base_path = SPIFFS_BASE_PATH,
@@ -212,49 +222,103 @@ static void spiffs_initialise(void){
     }
     size_t fs;
     int err = 0;
-    get_file_size("/c/www/index.html", &fs, &err);
+    char* file_path = NULL;
+    file_path = malloc(32);
+    
+    memset(file_path, 0, 32);
+    strcpy(file_path, HTTPD_WEB_ROOT);
+    strcat(file_path, "/chip_info.html");
+    FILE* chip_info_file = NULL;
+    chip_info_file = fopen(file_path, "w");
+    if(chip_info_file != NULL){
+        char* text = NULL;
+        text = malloc(512);
+        if(text != NULL){
+            strcpy(text, "<!DOCTYPE HTML><html lang=\"en\"><head><title>ESP8266</title></head><body>");
+            strcat(text, "<p>");
+            char* cJ_string = NULL;
+            cJ_string = cJ_create_chip_info(&e_chip_info); 
+            strcat(text, cJ_string);
+            free(cJ_string);
+            strcat(text, "</p>");
+            strcat(text, "</body></html>");
+            fwrite(text, 1, strlen(text), chip_info_file);
+        }
+        free(text);
+        fclose(chip_info_file);
+    }
+
+    memset(file_path, 0, 32);
+    strcpy(file_path, HTTPD_WEB_ROOT);
+    strcat(file_path, "/index.html");
+
+    get_file_size(file_path, &fs, &err);
     // ESP_LOGI("## SPIFFS ##", "test.txt file size:%d, err:%d", fs, err);
     if(err != 0){
 
     }else{
+        char* html;
+        size_t len = 0;
+        int remain = fs;
+        if(fs > 512){
+            len = 512;
+        }else{
+            len = fs;
+        }
+        html = malloc(len);
+        if(html != NULL){
+            FILE* index = NULL;
+            index = fopen(file_path, "r");
+            if(index == NULL) return;
+            // ESP_LOGI("## SPIFFS ##", "file open");
+            remain = fs;
+            size_t read_size;
 
-    char* html;
-    size_t len = 0;
-    int remain = fs;
-    if(fs > 512){
-        len = 512;
-    }else{
-        len = fs;
-    }
-    html = malloc(len);
-    if(html != NULL){
-        FILE * index = NULL;
-        index = fopen("/c/www/index.html", "r");
-        if(index == NULL) return;
-        // ESP_LOGI("## SPIFFS ##", "file open");
-        remain = fs;
-        size_t read_size;
-        while (remain > 0){
-            memset(html, 0, len);
-            read_size = fread(html, 1, len, index);
-            remain = remain - read_size * sizeof(char);
-            if(read_size < len){
-                if(feof(index)){
-                    html[read_size*sizeof(char)] = '\0';
-                    // printf("%s", html);
-                    break;
+            // 读取行
+            char des_str[64];
+            memset(des_str, 0, 64);
+            uint16_t raw_index = 0, raw_len = 0, des_len = strlen("<div class=\"copy\">");
+            memcpy(des_str, "<div class=\"copy\">", des_len);
+            fpos_t position;
+            while(!feof(index)){ // 未到达结尾
+                memset(html, 0, len);
+                fgets(html, 128, index);
+                raw_len = strlen(html);
+                raw_index = 0;
+                while((raw_index + des_len) <= raw_len){
+                    if(memcmp(&html[raw_index], des_str, des_len) == 0){
+                        fgetpos(index, &position);
+                        printf("find: %s\r\n", des_str);
+                        break;
+                    }else{
+                    }
+                    ++raw_index;
                 }
             }
-            html[read_size*sizeof(char)] = '\0';
-            // printf("%s", html);
+            
+
+            // while (remain > 0){   // 读取文件内容
+            //     memset(html, 0, len);
+            //     read_size = fread(html, 1, len, index);
+            //     remain = remain - read_size * sizeof(char);
+            //     if(read_size < len){
+            //         if(feof(index)){
+            //             html[read_size*sizeof(char)] = '\0';
+            //             // printf("%s", html);
+            //             break;
+            //         }
+            //     }
+            //     html[read_size*sizeof(char)] = '\0';
+            //     // printf("%s", html);
+            // }
+            // ESP_LOGI("## SPIFFS ##", "file read");
+            fclose(index);
+            free(html);
+        }else{
+            free(html);
         }
-        // ESP_LOGI("## SPIFFS ##", "file read");
-        fclose(index);
-        free(html);
-    }else{
-        free(html);
     }
-    }
+    free(file_path);
 }
 static void heap_info(void){
     uint32_t heap_free = heap_caps_get_free_size(MALLOC_CAP_32BIT);
@@ -372,6 +436,9 @@ static void record_run_time_task(void* parm){
     }
 }
 
+/**
+ * 获取系统任务状态及堆栈使用情况
+ * */
 static void get_cpu_task_run_info(void* parm){
     // char cpu_task_run_info[256];
     char* cpu_task_run_info;
@@ -379,13 +446,39 @@ static void get_cpu_task_run_info(void* parm){
         cpu_task_run_info = malloc(512);
         memset(cpu_task_run_info, 0, 512);
         vTaskList(cpu_task_run_info);
+        printf("-----------------------------------------------------------------------\r\n");
+        printf("Task Name       Task Status   Task Priority    Reset Stack   Task Index\r\n");
         printf("%s\r\n%d\r\n", cpu_task_run_info, strlen(cpu_task_run_info));
+        printf("-----------------------------------------------------------------------\r\n");
         memset(cpu_task_run_info, 0, 512);
         vTaskGetRunTimeStats(cpu_task_run_info);
+        printf("-----------------------------------------------------------------------\r\n");
+        printf("Task Name       Run Times     Used Present \r\n");
         printf("%s\r\n%d\r\n", cpu_task_run_info, strlen(cpu_task_run_info));
+        printf("-----------------------------------------------------------------------\r\n");
         free(cpu_task_run_info);
         // uxTaskGetSystemState();
         vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
+
+/**
+ * 通过 LED 显示系统状态
+ * */
+static void system_status_task(void* pvParameters){
+
+}
+
+static void timer_callback(void){
+    timer_callback_count += 1;
+    if(led_blink_freq < 0){
+        gpio_set_level(GPIO_NUM_4, 0);  //常亮
+    }else{
+        if(timer_callback_count % (10 /led_blink_freq) == 0){
+            gpio_set_level(GPIO_NUM_4, 0);
+        }else{
+            gpio_set_level(GPIO_NUM_4, 1);
+        }
     }
 }
 
@@ -394,6 +487,16 @@ void app_main()
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
     
     phripherals_initialise();    //初始化外设
+    
+    led_status_timer_handle = xTimerCreate("s_Timer", pdMS_TO_TICKS(100), pdTRUE, (void*)0x01, (TimerCallbackFunction_t)timer_callback);
+    if(led_status_timer_handle != NULL){
+        xTimerStart(led_status_timer_handle, 0);
+    }else{
+        ESP_LOGE(TAG, "software timer create failure! system stop!");
+        while(1);
+    }
+
+    create_led_control_task(NULL, 7);   // 创建 LED 控制任务
 
     // 获取BASE MAC地址
     uint8_t efuse_base_mac[6];
@@ -419,7 +522,7 @@ void app_main()
 
     nvs_initialise();
 
-    xTaskCreate(record_run_time_task, "record_run_time_task", 1024, NULL, 3, NULL);
+    xTaskCreate(record_run_time_task, "record_run_time_task", 1024, NULL, 3, NULL);  // 实现快速上电三次重置系统
 
     heap_info();
     spiffs_initialise();
@@ -427,11 +530,13 @@ void app_main()
     mqtt_event_group = xEventGroupCreate();
     // fota_event_group = xEventGroupCreate();
 
-    create_http_server_task(NULL, 4);
+    create_http_server_task(NULL, 4);  // 创建 http server 处理任务
 
-    xTaskCreate(create_fota_update_task, "create_fota_update_task", 1024, NULL, 6, NULL);
-    // xTaskCreate(get_cpu_task_run_info, "get_cpu_task_run_info", 2048, NULL, 1, NULL);
-    initialise_wifi(NULL);
+    xTaskCreate(create_fota_update_task, "create_fota_update_task", 1024, NULL, 6, NULL);   // 创建 OTA 更新任务
+    initialise_wifi(NULL);     // 初始化 WIFI
     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    
+    // xTaskCreate(get_cpu_task_run_info, "get_cpu_task_run_info", 2048, NULL, 1, NULL);
 
+    // set_led_brightness(13, 50);
 }

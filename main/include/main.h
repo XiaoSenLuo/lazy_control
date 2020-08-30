@@ -50,8 +50,13 @@ extern "C"{
 
 #include "fota.h"
 
-#define GPIO_4                                     GPIO_NUM_4
-#define GPIO_5                                     GPIO_NUM_5
+#include "sign_api.h"  // Aliyun MQTT Sign
+
+
+#define GPIO_0x00                                     GPIO_NUM_14
+#define GPIO_0x01                                     GPIO_NUM_16
+
+void set_led_blink_freq(int8_t freq);
 
 size_t get_file_size(const char * file, size_t* file_size, int* err);
 void get_config_from_url(const char* config_data, const char* config_key, uint8_t* value, uint8_t value_len);
@@ -126,6 +131,7 @@ extern const EventBits_t MQTT_CLIENT_CONNECTED_BIT;
 void get_mqtt_config_from_url(char* buf, c_mqtt_config_t* mqtt_cfg);
 void get_mqtt_topic_from_url(char* buf, c_mqtt_topic_t* c_mqtt_topic);
 char* cJ_create_chip_info(e_chip_info_t* e_chip_info);
+void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region);
 
 extern TaskHandle_t mqtt_event_recv_task_handle;
 void mqtt_event_recv_task(void* parm);
@@ -136,7 +142,6 @@ extern TaskHandle_t mqtt_connect_to_broker_task_handle;
 void mqtt_connect_to_broker_task(void* parm);
 void create_mqtt_connect_to_broker_task(void * const pvParameters, UBaseType_t uxPriority);
 void delete_mqtt_connect_to_broker_task(void);
-
 
 
 #define HTTPD_WEB_ROOT                             "/c/www"
@@ -153,6 +158,22 @@ void delete_http_server_task(void);
 void notice_http_server_task(bool en);
 
 
+// LEDC
+
+#define LEDC_TEST_CH_NUM       (4)
+
+extern int ledc_gpio_num[LEDC_TEST_CH_NUM];
+
+void ledc_initialise(void);
+void create_led_control_task(void * const pvParameters, UBaseType_t uxPriority);
+void delete_led_control_task(void);
+
+
+/**
+ * @param gpio 管脚
+ * @param br 亮度, 百分比 
+*/
+void set_led_brightness(gpio_num_t gpio, uint8_t br);
 
 
 #ifdef __cplusplus

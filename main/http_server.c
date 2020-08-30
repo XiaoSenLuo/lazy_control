@@ -22,8 +22,10 @@ const EventBits_t HTTP_MQTT_CLIENT_SAVE_CONFIG_BIT = BIT3;
 
 static const char* html_page[] = {
     "/index.html",
+    "/chip_info.html",
     "/wifi_config.html",
     "/mqtt_config.html",
+    "/aliyun_mqtt_sign.html",
     "/update.html",
 };
 
@@ -173,6 +175,18 @@ static esp_err_t http_get_handler(httpd_req_t *req)
                     request_url = malloc(strlen(html_page[page]) + strlen(HTTPD_WEB_ROOT) + 1);
                     strcpy(request_url, HTTPD_WEB_ROOT);
                     strcat(request_url, html_page[page]);
+                    // switch(page){
+                    //     case 1:
+                    //     case 2:
+                    //     case 3:
+                    //     case 4:
+                    //     case 5:
+                    //     default:
+                    //         request_url = malloc(strlen(html_page[page]) + strlen(HTTPD_WEB_ROOT) + 1);
+                    //         strcpy(request_url, HTTPD_WEB_ROOT);
+                    //         strcat(request_url, html_page[page]);
+                    //     break;
+                    // }
                 }
             }
             free(buf);
@@ -275,8 +289,8 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                         switch(save_page){
                             case 0:
                             break;
-                            case 1:
-                                
+                            case 1:   // WIFI Config
+                                 
                                 get_wifi_config_from_url(buf, &sta_wifi_cfg);
                                 // ESP_LOGI("## HTTPD Config WiFi ##", "%s, %s", sta_wifi_cfg.ssid, sta_wifi_cfg.password);
                                 // err = save_wifi_config(&sta_wifi_cfg);
@@ -288,7 +302,7 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                                     save_status &= (~(0x01 << save_page));
                                 }
                             break;
-                            case 2:
+                            case 2:  // MQTT Broker Config
 
                                 get_mqtt_config_from_url(buf, &c_mqtt_cfg);
                                 // err = save_mqtt_config(&c_mqtt_cfg);
@@ -298,17 +312,18 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                                     save_status |= (0x01 << save_page);
                                     ESP_LOGI("## HTTPD Config MQTT ##", "MQTT Config Save Success!");
                                 }else{
-                                    ESP_LOGI("## HTTPD Config MQTT ##", "MQTT Config Save Failure ERROR Code:%d", err);
+                                    ESP_LOGE("## HTTPD Config MQTT ##", "MQTT Config Save Failure ERROR Code:%d", err);
                                     save_status &= (~(0x01 << save_page));
                                 }
                             break;
-                            case 3:
+                            case 3: // OTA
                                 get_fota_config_from_url(buf, &ota_cfg);
                                 ESP_LOGI(TAG, "OTA Server:%s | Port: %s | File:%s",ota_cfg.server_host, ota_cfg.server_port, ota_cfg.ota_file);
                                 
                                 is_ota = 1;
                             break;
-                            case 4:
+                            case 4:  // Aliyun MQTT Sign Config
+
                             break;
                             default:
                             break;
@@ -378,7 +393,7 @@ void http_req_handle_task(void* parm){
                 break;
             }
         }else{
-            ESP_LOGI("## HTTPD ##", "http handle task recieve failure");
+            ESP_LOGE("## HTTPD ##", "http handle task recieve failure");
         }
     }
 }
@@ -400,7 +415,7 @@ httpd_handle_t start_webserver(httpd_handle_t* server)
         return *server;
     }
 
-    ESP_LOGI(TAG, "Error starting server!");
+    ESP_LOGE(TAG, "Error starting server!");
     return NULL;
 }
 
@@ -430,7 +445,7 @@ void create_http_server_task(void * const pvParameters, UBaseType_t uxPriority){
     if(http_server_handle == NULL){
         xReturn = xTaskCreate(http_server_task, "http_server_task", 1024, pvParameters, uxPriority, &http_server_task_handle);
         if(xReturn != pdPASS){
-            ESP_LOGI(TAG, "\"http_server_task\" create failure!");
+            ESP_LOGE(TAG, "\"http_server_task\" create failure!");
         }
     }
 }
@@ -439,31 +454,40 @@ void delete_http_server_task(void){
     if(http_server_task_handle != NULL){
         vTaskDelete(http_server_task_handle);
         http_server_task_handle = NULL;
+    }else{
+        ESP_LOGE(TAG, "http server task do not create");
     }
 }
 
 void notice_http_server_task(bool en){
-    if(en){
-        xEventGroupClearBits(http_event_group, HTTP_SERVER_STOP_BIT);
-        xEventGroupSetBits(http_event_group, HTTP_SERVER_START_BIT);
+    if(http_event_group != NULL){
+        if(en){
+            xEventGroupClearBits(http_event_group, HTTP_SERVER_STOP_BIT);
+            xEventGroupSetBits(http_event_group, HTTP_SERVER_START_BIT);
+        }else{
+            xEventGroupClearBits(http_event_group, HTTP_SERVER_START_BIT);
+            xEventGroupSetBits(http_event_group, HTTP_SERVER_STOP_BIT);
+        }
     }else{
-        xEventGroupClearBits(http_event_group, HTTP_SERVER_START_BIT);
-        xEventGroupSetBits(http_event_group, HTTP_SERVER_STOP_BIT);
+        ESP_LOGE(TAG, "http event group is null");
     }
 }
 
 void create_http_req_handle_task(void * const pvParameters, UBaseType_t uxPriority){
     BaseType_t xReturn = pdFAIL;
     if(http_req_handle_task_handle == NULL){
+        q_http_req = xQueueCreate(2, sizeof(httpd_req_t));
         xReturn = xTaskCreate(http_req_handle_task, "http_req_handle_task", 1024, pvParameters, uxPriority, &http_req_handle_task_handle);
         if(xReturn != pdPASS){
-            ESP_LOGI(TAG, "\"http_req_handle_task\" create failure!");
+            ESP_LOGE(TAG, "\"http_req_handle_task\" create failure!");
         }
     }
 }
 
 void delete_http_req_handle_task(void){
     if(http_req_handle_task_handle != NULL){
+        vQueueDelete(q_http_req);
+        q_http_req = NULL;
         vTaskDelete(http_req_handle_task_handle);
         http_req_handle_task_handle = NULL;
     }

@@ -46,7 +46,7 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         ESP_LOGE(TAG, "disconnect reason : %d", info->disconnected.reason);
         if (info->disconnected.reason == WIFI_REASON_BASIC_RATE_NOT_SUPPORT) {
             /*Switch to 802.11 bgn mode */
-            esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCAL_11B | WIFI_PROTOCAL_11G | WIFI_PROTOCAL_11N);
+            esp_wifi_set_protocol(ESP_IF_WIFI_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
         }
         if((--wifi_connect_retry) > 0){
             ESP_ERROR_CHECK(esp_wifi_connect());
@@ -165,6 +165,7 @@ void initialise_wifi(void *arg)
         // ESP_LOGI(TAG, "WIFI SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_config.sta.ssid), sta_config.sta.ssid, (int)strlen((char*)sta_config.sta.password), sta_config.sta.password);
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
+        set_led_blink_freq(1);
         // ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));       
     }else{
         // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
@@ -180,6 +181,7 @@ void initialise_wifi(void *arg)
         if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
+        set_led_blink_freq(3);
     }
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MODEM));  //省电模式

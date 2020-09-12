@@ -56,6 +56,8 @@ extern "C"{
 #define GPIO_0x00                                     GPIO_NUM_14
 #define GPIO_0x01                                     GPIO_NUM_16
 
+void restart_chip(void);
+
 void set_led_blink_freq(int8_t freq);
 
 size_t get_file_size(const char * file, size_t* file_size, int* err);
@@ -84,6 +86,9 @@ void delete_wifi_reconnect_task(void);
 void get_wifi_config_from_url(char* buf, sta_wifi_config_t* sta_wifi_cfg);
 void initialise_wifi(void *arg);
 
+void wifi_start_scan(void);
+void create_wifi_scan_task(void * const pvParameters, UBaseType_t uxPriority);
+void delete_wifi_scan_task(void);
 
 typedef struct {
     esp_chip_info_t esp_info;

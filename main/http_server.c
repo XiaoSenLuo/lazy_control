@@ -298,9 +298,11 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                                 err = save_data_to_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
                                 if(ESP_OK == err){
                                     save_status |= (0x01 << save_page);
+                                    // restart_chip();
                                 }else{
                                     save_status &= (~(0x01 << save_page));
                                 }
+
                             break;
                             case 2:  // MQTT Broker Config
 
@@ -350,7 +352,6 @@ static esp_err_t http_post_handler(httpd_req_t *req)
             httpd_resp_set_type(req, HTTPD_TYPE_TEXT);
             httpd_resp_send(req, NULL, 0);
         }
-        
         if(save_status & (0x01 << 2)){
             xEventGroupSetBits(mqtt_event_group, MQTT_CLIENT_START_BIT);  
         }

@@ -3,16 +3,92 @@
 #include "main.h"
 
 
+/**
+ * 连接到 WIFI, LED 闪烁频率 5Hz
+ * 启动WIFI AP, LED 闪烁频率 10Hz
+ * 
+ * */
+
 static const char *TAG="## WIFI ##";
 
-#define WIFI_CONNECT_RETRY                           5
+#define WIFI_CONNECT_RETRY                           10
 static int8_t wifi_connect_retry = WIFI_CONNECT_RETRY;
 
 EventGroupHandle_t wifi_event_group = NULL;
 const EventBits_t WIFI_DISCONNECT_BIT = BIT0;
-// static const EventBits_t WIFI_GOT_IP_BIT = BIT1;
+static const EventBits_t WIFI_SCAN_DONE_BIT = BIT1;
+static const EventBits_t WIFI_SCAN_START_BIT = BIT2;
 TaskHandle_t wifi_reconnect_task_handle = NULL;
 
+static TaskHandle_t wifi_scan_task_handle = NULL;
+
+static bool ap_start = false;
+static bool is_connected = false;
+
+static wifi_ap_record_t* ap_record_list = NULL;
+
+
+
+static void setup_sta(char* ssid, char* password){
+    wifi_config_t sta_config = {
+        .sta = {
+            .ssid = "",
+            .password = "",
+            .scan_method = WIFI_ALL_CHANNEL_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
+        },
+    };
+    if(ssid != NULL) memcpy(sta_config.sta.ssid, ssid, strlen(ssid));
+    if(password != NULL) memcpy(sta_config.sta.password, password, strlen(password));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
+}
+static void setup_ap(void){
+    char ap_ssid[32];
+    strcpy(ap_ssid, "ESPConfig_");
+    strcat(ap_ssid, e_chip_info.base_mac);
+    wifi_config_t ap_config = {
+        .ap = {
+            .ssid = "",
+            .ssid_len = strlen(ap_ssid),
+            .password = "",
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .max_connection = 1,
+        },
+    };
+    strcpy((char*)ap_config.ap.ssid, ap_ssid);
+    if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
+}
+
+static void setup_ap_sta(char* sta_ssid, char* sta_password){
+    char ap_ssid[32];
+    strcpy(ap_ssid, "ESPConfig_");
+    strcat(ap_ssid, e_chip_info.base_mac);
+    wifi_config_t ap_sta_config = {
+        .sta = {
+            .ssid = "",
+            .password = "",
+            .scan_method = WIFI_ALL_CHANNEL_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL
+        },
+        .ap = {
+            .ssid = "",
+            .ssid_len = strlen(ap_ssid),
+            .password = "",
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .max_connection = 1
+        }
+    };
+    if(sta_ssid != NULL) memcpy(ap_sta_config.sta.ssid, sta_ssid, strlen(sta_ssid));
+    if(sta_password != NULL) memcpy(ap_sta_config.sta.password, sta_password, strlen(sta_password));
+    strcpy((char*)ap_sta_config.ap.ssid, ap_ssid);
+    if(strlen((const char*)ap_sta_config.ap.password) == 0) ap_sta_config.ap.authmode = WIFI_AUTH_OPEN;
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_sta_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &ap_sta_config));
+}
 
 
 static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
@@ -28,13 +104,19 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         break;
     case SYSTEM_EVENT_STA_CONNECTED:
     // ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
-        delete_wifi_reconnect_task();
+        is_connected = true;
+        // delete_wifi_reconnect_task();
+        xEventGroupClearBits(wifi_event_group, WIFI_SCAN_START_BIT);
         xEventGroupClearBits(wifi_event_group, WIFI_DISCONNECT_BIT);
+        set_led_blink_freq(5);
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
         ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
         ESP_LOGI(TAG, "Got IP: '%s'",
                 ip4addr_ntoa(&event->event_info.got_ip.ip_info.ip));
+                
+        ESP_ERROR_CHECK(esp_wifi_scan_stop());
+        delete_wifi_scan_task();       //
 
         create_mqtt_connect_to_broker_task(NULL, 6);
         // xEventGroupSetBits(wifi_event_group, WIFI_GOT_IP_BIT);
@@ -42,6 +124,7 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         notice_http_server_task(true);
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
+        is_connected = false;
         ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
         ESP_LOGE(TAG, "disconnect reason : %d", info->disconnected.reason);
         if (info->disconnected.reason == WIFI_REASON_BASIC_RATE_NOT_SUPPORT) {
@@ -50,38 +133,50 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         }
         if((--wifi_connect_retry) > 0){
             ESP_ERROR_CHECK(esp_wifi_connect());
-        }else{                                //达到最大重连次数, 重启wifi
+        }else{                                //达到最大重连次数
             delete_mqtt_connect_to_broker_task();
-            ESP_ERROR_CHECK(esp_wifi_stop());
-            create_wifi_reconnect_task(NULL, 5);
-            if((info->disconnected.reason != WIFI_REASON_NO_AP_FOUND) && (info->disconnected.reason != WIFI_REASON_AUTH_FAIL)){
-                ESP_LOGI(TAG, "restart Wifi...............");
-                wifi_connect_retry = WIFI_CONNECT_RETRY;
-                xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);
-                // create_wifi_reconnect_task(NULL, 5);          
-            }else{  //未找到指定SSID AP 或者验证错误
-                wifi_connect_retry = 0;
-                wifi_config_t ap_config = {
-                    .ap = {
-                        .ssid = "ESPConfig",
-                        .ssid_len = strlen("ESPConfig"),
-                        .password = "",
-                        .authmode = WIFI_AUTH_OPEN,
-                        .max_connection = 2,
-                    },
-                };
-                if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
-                ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));  
-                ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
-                ESP_LOGI(TAG, "NOT FOUND STA OR AUTH ERROR, START CONFIG AP");
-                xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);              
-            }
+            create_wifi_scan_task(NULL, 5);
+            xEventGroupSetBits(wifi_event_group, WIFI_SCAN_START_BIT);
+            // ESP_ERROR_CHECK(esp_wifi_stop());
+            // create_wifi_reconnect_task(NULL, 5);
+            // if((info->disconnected.reason != WIFI_REASON_NO_AP_FOUND) && (info->disconnected.reason != WIFI_REASON_AUTH_FAIL)){
+            //     ESP_LOGI(TAG, "restart Wifi...............");
+            //     wifi_connect_retry = WIFI_CONNECT_RETRY;
+            //     xEventGroupSetBits(wifi_event_group, WIFI_SCAN_START_BIT);
+            //     // xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);        
+            // }else{  //未找到指定SSID AP 或者验证错误
+            //     wifi_connect_retry = 0;
+            //     if(!ap_start){
+            //         esp_wifi_stop();
+            //         setup_ap_sta(NULL, NULL);
+            //         ESP_ERROR_CHECK(esp_wifi_start());
+            //         ESP_LOGI(TAG, "NOT FOUND STA OR AUTH ERROR, START CONFIG AP");
+            //     }
+            //     // create_wifi_scan_task(NULL, 5);
+            //     xEventGroupSetBits(wifi_event_group, WIFI_SCAN_START_BIT);
+            //     // xEventGroupSetBits(wifi_event_group, WIFI_DISCONNECT_BIT);              
+            // }
         }
         break;
     case SYSTEM_EVENT_AP_START:
+        ap_start = true;
         // xEventGroupSetBits(http_event_group, HTTP_SERVER_START_BIT);
         notice_http_server_task(true);
+        set_led_blink_freq(10);
         break;
+    case SYSTEM_EVENT_AP_STOP:
+        ap_start = false;
+    break;
+    case SYSTEM_EVENT_AP_STACONNECTED:
+        is_connected = true;
+    break;
+    case SYSTEM_EVENT_AP_STADISCONNECTED:
+        is_connected = false;
+    break;
+    case SYSTEM_EVENT_SCAN_DONE:
+        ESP_LOGI(TAG, "scan is done");
+        xEventGroupSetBits(wifi_event_group, WIFI_SCAN_DONE_BIT);
+    break;
     default:
         break;
     }
@@ -132,6 +227,8 @@ void wifi_reconnect_task(void* parm){
     }
 }
 
+
+
 void initialise_wifi(void *arg)
 {
     esp_err_t err;
@@ -152,36 +249,37 @@ void initialise_wifi(void *arg)
     size_t cfg_size = sizeof(wifi_config_t);
     err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
     if(err == ESP_OK){
-        wifi_config_t sta_config = {
-            .sta = {
-                .ssid = "",
-                .password = "",
-                .scan_method = WIFI_ALL_CHANNEL_SCAN,
-            },
-        };
-        ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
-        memcpy(sta_config.sta.ssid, sta_wifi_cfg.ssid, sizeof(sta_wifi_cfg.ssid));
-        memcpy(sta_config.sta.password, sta_wifi_cfg.password, sizeof(sta_wifi_cfg.password));
-        // ESP_LOGI(TAG, "WIFI SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_config.sta.ssid), sta_config.sta.ssid, (int)strlen((char*)sta_config.sta.password), sta_config.sta.password);
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
-        set_led_blink_freq(1);
+        setup_sta((char*)sta_wifi_cfg.ssid, (char*)sta_wifi_cfg.password);
+        // wifi_config_t sta_config = {
+        //     .sta = {
+        //         .ssid = "",
+        //         .password = "",
+        //         .scan_method = WIFI_ALL_CHANNEL_SCAN,
+        //         .sort_method = WIFI_CONNECT_AP_BY_SIGNAL
+        //     },
+        // };
+        // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
+        // memcpy(sta_config.sta.ssid, sta_wifi_cfg.ssid, sizeof(sta_wifi_cfg.ssid));
+        // memcpy(sta_config.sta.password, sta_wifi_cfg.password, sizeof(sta_wifi_cfg.password));
+        // // ESP_LOGI(TAG, "WIFI SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_config.sta.ssid), sta_config.sta.ssid, (int)strlen((char*)sta_config.sta.password), sta_config.sta.password);
+        // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
         // ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));       
     }else{
         // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
-        wifi_config_t ap_config = {
-            .ap = {
-                .ssid = "ESPConfig",
-                .ssid_len = strlen("ESPConfig"),
-                .password = "",
-                .authmode = WIFI_AUTH_WPA2_PSK,
-                .max_connection = 2,
-            },
-        };
-        if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
-        set_led_blink_freq(3);
+        setup_ap();
+        // wifi_config_t ap_config = {
+        //     .ap = {
+        //         .ssid = "ESPConfig",
+        //         .ssid_len = strlen("ESPConfig"),
+        //         .password = "",
+        //         .authmode = WIFI_AUTH_WPA2_PSK,
+        //         .max_connection = 2,
+        //     },
+        // };
+        // if(strlen((const char*)ap_config.ap.password) == 0) ap_config.ap.authmode = WIFI_AUTH_OPEN;
+        // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+        // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
     }
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MODEM));  //省电模式
@@ -193,7 +291,7 @@ void create_wifi_reconnect_task(void * const pvParameters, UBaseType_t uxPriorit
     if(wifi_reconnect_task_handle == NULL){
         xRetrun = xTaskCreate(wifi_reconnect_task, "wifi_reconnect_task", 1024, pvParameters, uxPriority, &wifi_reconnect_task_handle);
         if(xRetrun != pdPASS){
-            ESP_LOGI(TAG, "\"wifi_reconnect_task\" create flailure");
+            ESP_LOGE(TAG, "\"wifi_reconnect_task\" create flailure");
         }
     }
 }
@@ -203,5 +301,120 @@ void delete_wifi_reconnect_task(void){
         vTaskDelete(wifi_reconnect_task_handle);
         wifi_reconnect_task_handle = NULL;
     }
+}
+
+
+void wifi_scan_task(void* pvParamters){
+
+    uint16_t ap_numbers = 0, ap_index = 0;
+    EventBits_t xBit;
+    esp_err_t err;
+    uint8_t scan_time = 6;
+
+    const wifi_scan_config_t wifi_scan_cfg = {
+        .ssid = NULL,
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time.active.min = 100,
+        .scan_time.active.max = 500,
+        .scan_time.passive = 500
+    };
+
+
+    tcpip_adapter_init();
+    ESP_ERROR_CHECK(esp_event_loop_init(wifi_event_handler, NULL));
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+
+    setup_sta(NULL, NULL);
+
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_scan_start(&wifi_scan_cfg, false));
+
+    while(true){
+        xBit = xEventGroupWaitBits(wifi_event_group, WIFI_SCAN_DONE_BIT | WIFI_SCAN_START_BIT, true, false, portMAX_DELAY);
+        scan_time -= 1;
+        if(xBit == WIFI_SCAN_DONE_BIT){
+            esp_wifi_scan_get_ap_num(&ap_numbers);
+            ap_record_list = malloc(sizeof(wifi_ap_record_t) * ap_numbers);
+            memset(ap_record_list, 0, sizeof(wifi_ap_record_t) * ap_numbers);
+            esp_wifi_scan_get_ap_records(&ap_numbers, ap_record_list);
+            if(ap_numbers != 0){
+                size_t cfg_size = sizeof(wifi_config_t);
+                sta_wifi_config_t sta_wifi_cfg;
+                err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
+                if(err == ESP_OK){
+                    for(ap_index = 0; ap_index < ap_numbers; ap_index++){    
+                        ESP_LOGI(TAG, "find ap's ssid(%d/%d):%s", ap_index + 1, ap_numbers, ap_record_list[ap_index].ssid);
+                        if(strcmp((char*)ap_record_list[ap_index].ssid, (char*)sta_wifi_cfg.ssid) == 0){  // 扫描到目标wifi
+                            ESP_ERROR_CHECK(esp_wifi_stop());
+                            vTaskDelay(1000 / portTICK_PERIOD_MS);         
+                            setup_sta((char*)sta_wifi_cfg.ssid, (char*)sta_wifi_cfg.password);                         
+                            ESP_ERROR_CHECK(esp_wifi_start());
+                            break;
+                        }
+                    }                 
+                }else{
+                    if(!ap_start){
+                        ESP_ERROR_CHECK(esp_wifi_stop());
+                        vTaskDelay(1000 / portTICK_PERIOD_MS);
+                        setup_ap();
+                        ESP_ERROR_CHECK(esp_wifi_start());
+                    }                   
+                }
+            }
+            ap_numbers = 0;
+            free(ap_record_list);
+            if(scan_time == 0){
+                ESP_ERROR_CHECK(esp_wifi_stop());
+                setup_ap_sta(NULL, NULL);
+                ESP_ERROR_CHECK(esp_wifi_start());
+            }
+            vTaskDelay(10000 / portTICK_PERIOD_MS);
+            if(!is_connected) ESP_ERROR_CHECK(esp_wifi_scan_start(&wifi_scan_cfg, false));
+        }else if(xBit == WIFI_SCAN_START_BIT){
+            if(!is_connected){
+                wifi_mode_t wifi_mode;
+                ESP_ERROR_CHECK(esp_wifi_get_mode(&wifi_mode));
+                if(wifi_mode == WIFI_MODE_STA || wifi_mode == WIFI_MODE_STA){
+                    err = esp_wifi_scan_start(&wifi_scan_cfg, false);
+                    if(err == ESP_ERR_WIFI_NOT_STARTED){
+                        ESP_ERROR_CHECK(esp_wifi_start());
+                        ESP_ERROR_CHECK(esp_wifi_scan_start(&wifi_scan_cfg, false));
+                    }
+                }else{
+                    ESP_ERROR_CHECK(esp_wifi_stop());
+                    setup_sta(NULL, NULL);
+                    ESP_ERROR_CHECK(esp_wifi_start());
+                    ESP_ERROR_CHECK(esp_wifi_scan_start(&wifi_scan_cfg, false));
+                }
+            }
+        }
+    }
+}
+
+void create_wifi_scan_task(void * const pvParameters, UBaseType_t uxPriority){
+    BaseType_t xReturn = pdFAIL;
+
+    if(wifi_event_group == NULL) wifi_event_group = xEventGroupCreate();
+
+    if(wifi_scan_task_handle == NULL){
+        xReturn = xTaskCreate(wifi_scan_task, "wifi_scan_task", 2048, pvParameters, uxPriority, &wifi_scan_task_handle);
+        if(xReturn != pdPASS){
+            ESP_LOGE(TAG, "\"wifi_scan_task\" create flailure");
+        }
+    }
+}
+
+void delete_wifi_scan_task(void){
+    if(wifi_scan_task_handle != NULL){
+        vTaskDelete(wifi_scan_task_handle);
+        wifi_scan_task_handle = NULL;
+    }
+}
+
+void wifi_start_scan(void){
+    if(wifi_event_group != NULL)
+        xEventGroupSetBits(wifi_event_group, WIFI_SCAN_START_BIT);
 }
 

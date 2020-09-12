@@ -16,7 +16,7 @@ static const char *TAG="APP";
 // #define WIFI_PASSWD "vHZ-sRk-s3p-czW"
 
 static EventGroupHandle_t esp_event_group;
-static const EventBits_t ESP_RESTART_BIT = BIT31;
+EventBits_t ESP_RESTART_BIT = BIT0;
 
 
 #define SPIFFS_BASE_PATH                           "/c"
@@ -473,12 +473,32 @@ static void timer_callback(void){
     timer_callback_count += 1;
     if(led_blink_freq < 0){
         gpio_set_level(GPIO_NUM_4, 0);  //常亮
+    }else if(led_blink_freq == 0){
+        gpio_set_level(GPIO_NUM_4, 1);
     }else{
         if(timer_callback_count % (10 /led_blink_freq) == 0){
             gpio_set_level(GPIO_NUM_4, 0);
         }else{
             gpio_set_level(GPIO_NUM_4, 1);
         }
+    }
+}
+
+void restart_chip(void){
+    if(esp_event_group != NULL){
+        xEventGroupSetBits(esp_event_group, ESP_RESTART_BIT);
+    }
+}
+
+static void restart_chip_task(void* pvParameters){
+    EventBits_t xBit;
+    while(true){
+        xBit = xEventGroupWaitBits(esp_event_group, ESP_RESTART_BIT, true, false, portMAX_DELAY);
+        if(xBit == ESP_RESTART_BIT){
+            vTaskDelay(5000 / portTICK_RATE_MS);
+            esp_restart();
+        }
+
     }
 }
 
@@ -521,9 +541,10 @@ void app_main()
     esp_event_group = xEventGroupCreate();
 
     nvs_initialise();
-
+    
+    xTaskCreate(restart_chip_task, "restart_chip_task", 1024, NULL, 8, NULL);         // 延时重启任务
     xTaskCreate(record_run_time_task, "record_run_time_task", 1024, NULL, 3, NULL);  // 实现快速上电三次重置系统
-
+    
     heap_info();
     spiffs_initialise();
 
@@ -533,7 +554,10 @@ void app_main()
     create_http_server_task(NULL, 4);  // 创建 http server 处理任务
 
     xTaskCreate(create_fota_update_task, "create_fota_update_task", 1024, NULL, 6, NULL);   // 创建 OTA 更新任务
-    initialise_wifi(NULL);     // 初始化 WIFI
+    // initialise_wifi(NULL);     // 初始化 WIFI
+
+    create_wifi_scan_task(NULL, 5);    // 扫描wifi并连接
+
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     
     // xTaskCreate(get_cpu_task_run_info, "get_cpu_task_run_info", 2048, NULL, 1, NULL);

@@ -44,7 +44,7 @@ static QueueHandle_t q_led_brightness = NULL;
 static ledc_channel_config_t ledc_channel[LEDC_TEST_CH_NUM];
 int ledc_gpio_num[LEDC_TEST_CH_NUM] = {12, 13, 14, 16};
 static int ledc_fade_time = 1000;
-static int ledc_freq_hz = 256;
+static int ledc_freq_hz = 512;
 
 void ledc_initialise(void){
     int ch;
@@ -82,7 +82,7 @@ void ledc_initialise(void){
      */
 
     // Set LED Controller with previously prepared configuration
-    uint8_t gpio_index = 0;
+    // uint8_t gpio_index = 0;
 
     for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
         ledc_channel[ch].gpio_num = ledc_gpio_num[ch];
@@ -96,9 +96,9 @@ void ledc_initialise(void){
     ledc_fade_func_install(0);
 }
 
-static void save_led_config(){
+// static void save_led_config(){
 
-}
+// }
 
 static void led_control_task(void* pvParameters){
     ledc_channel_config_t channel_config;

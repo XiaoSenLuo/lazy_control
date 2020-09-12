@@ -3,13 +3,19 @@
 #include "main.h"
 
 
+/**
+ * 连接到MQTT broker, LED闪烁频率 1Hz
+ * 断开连接, LED闪烁频率 3Hz
+ * 
+ * */
+
 #define Q_MQTT_CLIENT_SIZE    4
 #define MQTT_CONNECT_RETRY    5
 
 
 #define MQTT_TOPIC_GPIO            "gpio/"
 #define MQTT_TOPIC_TIMER           "timer/"
-
+#define MQTT_TOPIC_STATUS          "/status"
 
 static const char *TAG="## MQTT ##";
 
@@ -90,8 +96,8 @@ void get_mqtt_topic_from_url(char* buf, c_mqtt_topic_t* c_mqtt_topic){
 }
 
 void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region){
-    uint8_t* src_data = NULL;
-    int len = 0;
+    // uint8_t* src_data = NULL;
+    // int len = 0;
 }
 
 
@@ -184,17 +190,11 @@ end:
     return cJ_print;
 }
 
-static bool is_json_string(const char * str){
-    size_t len = strlen(str);
-    if(str[0]);
-    return true;
-}
-
 void mqtt_event_recv_task(void* parm){
     esp_mqtt_event_handle_t event;
     BaseType_t xReturn = pdFAIL;
     size_t path_prefix_len = 0;
-    char topic_path[32];
+    char topic_path[64];
     int brightness = 0;
 
 
@@ -258,6 +258,12 @@ void mqtt_event_recv_task(void* parm){
                             set_led_brightness(GPIO_NUM_12, (uint8_t)brightness);
                         break;
                     }
+                    memset(topic_path, 0, sizeof(topic_path));
+                    strcpy(topic_path, event->topic);
+                    strcat(topic_path, MQTT_TOPIC_STATUS);
+                    int msg_id;
+                    msg_id = esp_mqtt_client_publish(event->client, (const char*)topic_path, event->data, 0, 1, 0); //
+                    ESP_LOGI("## MQTT ##", "topic:%s  return successful, msg_id=%d", topic_path, msg_id);
                 }
                 break;
                 default:
@@ -277,6 +283,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
     // your_context_t *context = event->context;
     switch (event->event_id) {
         case MQTT_EVENT_CONNECTED:
+            set_led_blink_freq(1);
             ESP_LOGI("## MQTT ##", "MQTT_EVENT_CONNECTED");
             if(q_mqtt_client_event == NULL) q_mqtt_client_event = xQueueCreate(Q_MQTT_CLIENT_SIZE, sizeof(esp_mqtt_event_handle_t));// 创建 mqtt client 句柄消息队列
             
@@ -333,6 +340,7 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
             free(base_topic_path);
             break;
         case MQTT_EVENT_DISCONNECTED:
+            set_led_blink_freq(3);
             mqtt_connecct_retry -= 1; //重连失败一次, 重连次数减一
             if(!mqtt_connecct_retry){ //达到最大重连次数, 重启MQTT客户端
                 mqtt_connecct_retry = MQTT_CONNECT_RETRY;         //重置重连次数
@@ -391,12 +399,13 @@ void mqtt_connect_to_broker_task(void* parm){
     // esp_mqtt_client_handle_t client = NULL;
     esp_err_t err;
     c_mqtt_config_t c_mqtt_cfg;
-    uint8_t restart_times = 5;
+    uint8_t restart_times = MQTT_CONNECT_RETRY;
     while(true){
         if(mqtt_client != NULL){
             esp_mqtt_client_stop(mqtt_client);
             mqtt_client = NULL;
         }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         memset(c_mqtt_cfg.host, 0, sizeof(c_mqtt_cfg.host));
         memset(c_mqtt_cfg.uri, 0, sizeof(c_mqtt_cfg.uri));
         memset(c_mqtt_cfg.client_id, 0, sizeof(c_mqtt_cfg.client_id));
@@ -421,7 +430,9 @@ void mqtt_connect_to_broker_task(void* parm){
             // mqtt_client = client;
             restart_times -= 1;
             if(restart_times == 0){
-                vTaskSuspend(NULL);
+                // vTaskSuspend(NULL);
+                restart_times = MQTT_CONNECT_RETRY;
+                esp_restart();  // 重启
             }
             esp_mqtt_client_start(mqtt_client);
         }else{

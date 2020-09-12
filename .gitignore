@@ -1,7 +1,8 @@
 
 build/
 #.vscode/
-#.idea/
+.idea/
+esp-html/.idea/
 *.old
 CMakeCache.txt
 *.bin

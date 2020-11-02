@@ -12,6 +12,10 @@
 static const char *TAG="## WIFI ##";
 
 #define WIFI_CONNECT_RETRY                           10
+#define WIFI_SSID_KEY                          "wifi_ssid"
+#define WIFI_PASSWORD_KEY                      "wifi_passwd"
+
+
 static int8_t wifi_connect_retry = WIFI_CONNECT_RETRY;
 
 EventGroupHandle_t wifi_event_group = NULL;
@@ -27,6 +31,53 @@ static bool is_connected = false;
 
 static wifi_ap_record_t* ap_record_list = NULL;
 
+wifi_config_t sta_wifi_cfg;
+
+esp_err_t save_wifi_config_to_nvs(wifi_config_t* wifi_config){
+
+    wifi_config = wifi_config;
+    nvs_handle n_nvs_handle;
+    esp_err_t err;
+    
+    err = nvs_open(WIFI_CONFIG_NAMESPACE, NVS_READWRITE, &n_nvs_handle);
+    if(err != ESP_OK  && err != ESP_ERR_NVS_NOT_FOUND) return err;
+    
+    err = nvs_set_str(n_nvs_handle, WIFI_SSID_KEY, (char*)wifi_config->sta.ssid);
+    if(err != ESP_OK) return err;
+
+    err = nvs_set_str(n_nvs_handle, WIFI_PASSWORD_KEY, (char*)wifi_config->sta.password);
+    if(err != ESP_OK) return err;
+
+    err = nvs_commit(n_nvs_handle);
+    if(err != ESP_OK) return err;
+
+    nvs_close(n_nvs_handle);
+    return ESP_OK;
+}
+
+
+esp_err_t read_wifi_config_from_nvs(wifi_config_t* wifi_config){
+
+    wifi_config = wifi_config;
+
+    nvs_handle n_nvs_handle;
+    esp_err_t err;
+    size_t len;
+
+    err = nvs_open(WIFI_CONFIG_NAMESPACE, NVS_READONLY, &n_nvs_handle);
+    if(err != ESP_OK  && err != ESP_ERR_NVS_NOT_FOUND) return err;
+    
+    err = nvs_get_str(n_nvs_handle, WIFI_SSID_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, WIFI_SSID_KEY, (char*)wifi_config->sta.ssid, &len);
+
+    err = nvs_get_str(n_nvs_handle, WIFI_PASSWORD_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, WIFI_PASSWORD_KEY, (char*)wifi_config->sta.password, &len);
+
+    nvs_close(n_nvs_handle);
+    return ESP_OK;
+}
 
 
 static void setup_sta(char* ssid, char* password){
@@ -183,7 +234,7 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
     return ESP_OK;
 }
 
-void get_wifi_config_from_url(char* buf, sta_wifi_config_t* sta_wifi_cfg){
+void get_wifi_config_from_url(char* buf, wifi_config_t* sta_wifi_cfg){
     // uint8_t ssid[64], passwd[128];
     uint8_t* src_data = NULL;
     int len;
@@ -192,14 +243,14 @@ void get_wifi_config_from_url(char* buf, sta_wifi_config_t* sta_wifi_cfg){
     // }else{
     //     len = *ssid_len;
     // }
-    memset(sta_wifi_cfg->ssid, 0, sizeof(sta_wifi_cfg->ssid));
-    memset(sta_wifi_cfg->password, 0, sizeof(sta_wifi_cfg->password));
+    memset(sta_wifi_cfg->sta.ssid, 0, sizeof(sta_wifi_cfg->sta.ssid));
+    memset(sta_wifi_cfg->sta.password, 0, sizeof(sta_wifi_cfg->sta.password));
 
-    len = sizeof(sta_wifi_cfg->ssid);
+    len = sizeof(sta_wifi_cfg->sta.ssid);
     src_data = malloc(len*2);
     get_config_from_url(buf, "wifi_ssid", src_data, len*2);
-    urldecode((const char*)src_data, (len*2), (char*)(sta_wifi_cfg->ssid), &len);
-    // ESP_LOGI(TAG, "SSID: %s", sta_wifi_cfg->ssid);
+    urldecode((const char*)src_data, (len*2), (char*)(sta_wifi_cfg->sta.ssid), &len);
+    // ESP_LOGI(TAG, "SSID: %s", sta_wifi_cfg.sta.ssid);
     free(src_data);
 
     // if(passwd_len == NULL){
@@ -207,11 +258,11 @@ void get_wifi_config_from_url(char* buf, sta_wifi_config_t* sta_wifi_cfg){
     // }else{
     //     len = *passwd_len;
     // }
-    len = sizeof(sta_wifi_cfg->password);
+    len = sizeof(sta_wifi_cfg->sta.password);
     src_data = malloc(len*2);
     get_config_from_url(buf, "wifi_passwd", src_data, len*2);
-    urldecode((const char*)src_data, (len*2), (char*)(sta_wifi_cfg->password), &len);
-    // ESP_LOGI(TAG, "PASSWD: %s", sta_wifi_cfg->password);
+    urldecode((const char*)src_data, (len*2), (char*)(sta_wifi_cfg->sta.password), &len);
+    // ESP_LOGI(TAG, "PASSWD: %s", sta_wifi_cfg.sta.password);
     free(src_data);
 }
 
@@ -232,7 +283,6 @@ void wifi_reconnect_task(void* parm){
 void initialise_wifi(void *arg)
 {
     esp_err_t err;
-    sta_wifi_config_t sta_wifi_cfg;
 
     tcpip_adapter_init();
     ESP_ERROR_CHECK(esp_event_loop_init(wifi_event_handler, arg));
@@ -240,8 +290,8 @@ void initialise_wifi(void *arg)
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     
-    memset(sta_wifi_cfg.ssid, 0, sizeof(sta_wifi_cfg.ssid));
-    memset(sta_wifi_cfg.password, 0, sizeof(sta_wifi_cfg.password));
+    memset(sta_wifi_cfg.sta.ssid, 0, sizeof(sta_wifi_cfg.sta.ssid));
+    memset(sta_wifi_cfg.sta.password, 0, sizeof(sta_wifi_cfg.sta.password));
 
     wifi_event_group = xEventGroupCreate();
 
@@ -249,7 +299,7 @@ void initialise_wifi(void *arg)
     size_t cfg_size = sizeof(wifi_config_t);
     err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
     if(err == ESP_OK){
-        setup_sta((char*)sta_wifi_cfg.ssid, (char*)sta_wifi_cfg.password);
+        setup_sta((char*)sta_wifi_cfg.sta.ssid, (char*)sta_wifi_cfg.sta.password);
         // wifi_config_t sta_config = {
         //     .sta = {
         //         .ssid = "",
@@ -258,15 +308,15 @@ void initialise_wifi(void *arg)
         //         .sort_method = WIFI_CONNECT_AP_BY_SIGNAL
         //     },
         // };
-        // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
-        // memcpy(sta_config.sta.ssid, sta_wifi_cfg.ssid, sizeof(sta_wifi_cfg.ssid));
-        // memcpy(sta_config.sta.password, sta_wifi_cfg.password, sizeof(sta_wifi_cfg.password));
+        // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.sta.ssid), sta_wifi_cfg.sta.ssid, (int)strlen((char*)sta_wifi_cfg.sta.password), sta_wifi_cfg.sta.password);
+        // memcpy(sta_config.sta.ssid, sta_wifi_cfg.sta.ssid, sizeof(sta_wifi_cfg.sta.ssid));
+        // memcpy(sta_config.sta.password, sta_wifi_cfg.sta.password, sizeof(sta_wifi_cfg.sta.password));
         // // ESP_LOGI(TAG, "WIFI SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_config.sta.ssid), sta_config.sta.ssid, (int)strlen((char*)sta_config.sta.password), sta_config.sta.password);
         // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         // ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
         // ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));       
     }else{
-        // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.ssid), sta_wifi_cfg.ssid, (int)strlen((char*)sta_wifi_cfg.password), sta_wifi_cfg.password);
+        // ESP_LOGI(TAG, "Read WIFI Config: SSID(len:%d): %s, PASSWD(len:%d): %s", (int)strlen((char*)sta_wifi_cfg.sta.ssid), sta_wifi_cfg.sta.ssid, (int)strlen((char*)sta_wifi_cfg.sta.password), sta_wifi_cfg.sta.password);
         setup_ap();
         // wifi_config_t ap_config = {
         //     .ap = {
@@ -340,16 +390,22 @@ void wifi_scan_task(void* pvParamters){
             memset(ap_record_list, 0, sizeof(wifi_ap_record_t) * ap_numbers);
             esp_wifi_scan_get_ap_records(&ap_numbers, ap_record_list);
             if(ap_numbers != 0){
+#if(NVS_DATA == 1)
                 size_t cfg_size = sizeof(wifi_config_t);
-                sta_wifi_config_t sta_wifi_cfg;
+                wifi_config_t sta_wifi_cfg;
                 err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
+#else
+                memset(sta_wifi_cfg.sta.ssid, 0, sizeof(sta_wifi_cfg.sta.ssid));
+                memset(sta_wifi_cfg.sta.password, 0, sizeof(sta_wifi_cfg.sta.password));
+                err = read_wifi_config_from_nvs(&sta_wifi_cfg);
+#endif
                 if(err == ESP_OK){
                     for(ap_index = 0; ap_index < ap_numbers; ap_index++){    
                         ESP_LOGI(TAG, "find ap's ssid(%d/%d):%s", ap_index + 1, ap_numbers, ap_record_list[ap_index].ssid);
-                        if(strcmp((char*)ap_record_list[ap_index].ssid, (char*)sta_wifi_cfg.ssid) == 0){  // 扫描到目标wifi
+                        if(strcmp((char*)ap_record_list[ap_index].ssid, (char*)sta_wifi_cfg.sta.ssid) == 0){  // 扫描到目标wifi
                             ESP_ERROR_CHECK(esp_wifi_stop());
                             vTaskDelay(1000 / portTICK_PERIOD_MS);         
-                            setup_sta((char*)sta_wifi_cfg.ssid, (char*)sta_wifi_cfg.password);                         
+                            setup_sta((char*)sta_wifi_cfg.sta.ssid, (char*)sta_wifi_cfg.sta.password);                         
                             ESP_ERROR_CHECK(esp_wifi_start());
                             break;
                         }

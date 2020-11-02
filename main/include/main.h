@@ -50,8 +50,10 @@ extern "C"{
 
 #include "fota.h"
 
-#include "sign_api.h"  // Aliyun MQTT Sign
+// #include "sign_api.h"  // Aliyun MQTT Sign
 
+
+#define NVS_DATA    0            // 数据保存格式
 
 #define GPIO_0x00                                     GPIO_NUM_14
 #define GPIO_0x01                                     GPIO_NUM_16
@@ -70,10 +72,8 @@ esp_err_t reset_nvs_all(void);
 
 void get_fota_config_from_url(char* buf, fota_config_t* fota_cfg);
 
-typedef struct {
-    uint8_t ssid[32];
-    uint8_t password[64];
-}sta_wifi_config_t;
+
+extern wifi_config_t sta_wifi_cfg;
 
 #define WIFI_CONFIG_NAMESPACE                        "wifi_config"
 #define WIFI_CONFIG_KEY                              "wifi_config"
@@ -83,7 +83,9 @@ void wifi_reconnect_task(void* parm);
 void create_wifi_reconnect_task(void * const pvParameters, UBaseType_t uxPriority);
 void delete_wifi_reconnect_task(void);
 
-void get_wifi_config_from_url(char* buf, sta_wifi_config_t* sta_wifi_cfg);
+void get_wifi_config_from_url(char* buf, wifi_config_t* sta_wifi_cfg);
+esp_err_t save_wifi_config_to_nvs(wifi_config_t* wifi_config);
+esp_err_t read_wifi_config_from_nvs(wifi_config_t* wifi_config);
 void initialise_wifi(void *arg);
 
 void wifi_start_scan(void);
@@ -136,7 +138,8 @@ extern const EventBits_t MQTT_CLIENT_CONNECTED_BIT;
 void get_mqtt_config_from_url(char* buf, c_mqtt_config_t* mqtt_cfg);
 void get_mqtt_topic_from_url(char* buf, c_mqtt_topic_t* c_mqtt_topic);
 char* cJ_create_chip_info(e_chip_info_t* e_chip_info);
-void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region);
+
+// void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region);
 
 extern TaskHandle_t mqtt_event_recv_task_handle;
 void mqtt_event_recv_task(void* parm);

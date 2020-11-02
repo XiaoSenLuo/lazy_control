@@ -282,7 +282,6 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                     if (httpd_query_key_value(query_buf, "page", param, sizeof(param)) == ESP_OK) {
                         ESP_LOGI(TAG, "Found URL query parameter => page=%s", param);
                         string2Int(param, &save_page);
-                        sta_wifi_config_t sta_wifi_cfg;
                         c_mqtt_config_t c_mqtt_cfg;
 
                         size_t cfg_size = 0;
@@ -294,8 +293,13 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                                 get_wifi_config_from_url(buf, &sta_wifi_cfg);
                                 // ESP_LOGI("## HTTPD Config WiFi ##", "%s, %s", sta_wifi_cfg.ssid, sta_wifi_cfg.password);
                                 // err = save_wifi_config(&sta_wifi_cfg);
+#if(NVS_DATA == 1)
                                 cfg_size = sizeof(wifi_config_t);
                                 err = save_data_to_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
+#else
+                                err = save_wifi_config_to_nvs(&sta_wifi_cfg);
+
+#endif
                                 if(ESP_OK == err){
                                     save_status |= (0x01 << save_page);
                                     // restart_chip();

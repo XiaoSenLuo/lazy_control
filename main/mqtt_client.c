@@ -17,6 +17,15 @@
 #define MQTT_TOPIC_TIMER           "timer/"
 #define MQTT_TOPIC_STATUS          "/status"
 
+#define MQTT_HOST_KEY              "m_host"
+#define MQTT_PORT_KEY              "m_port"
+#define MQTT_URI_KEY               "m_uri"
+#define MQTT_CLIENT_ID_KEY         "m_clientid"
+#define MQTT_USERNAME_KEY          "m_username"
+#define MQTT_PASSWORD_KEY          "m_passwd"
+
+
+
 static const char *TAG="## MQTT ##";
 
 
@@ -95,10 +104,75 @@ void get_mqtt_topic_from_url(char* buf, c_mqtt_topic_t* c_mqtt_topic){
     free(src_data);
 }
 
-void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region){
-    // uint8_t* src_data = NULL;
-    // int len = 0;
+
+esp_err_t save_mqtt_config_to_nvs(c_mqtt_config_t* c_mqtt_config){
+
+    c_mqtt_config = c_mqtt_config;
+    nvs_handle n_nvs_handle;
+    esp_err_t err;
+
+    err = nvs_open(MQTT_CONFIG_NAMESPACE, NVS_READWRITE, &n_nvs_handle);
+    if(err != ESP_OK  && err != ESP_ERR_NVS_NOT_FOUND) return err;
+
+    err = nvs_set_str(n_nvs_handle, MQTT_HOST_KEY, (char*)c_mqtt_config->host);
+    if(err != ESP_OK) return err;
+    err = nvs_set_str(n_nvs_handle, MQTT_PORT_KEY, (char*)c_mqtt_config->port);
+    if(err != ESP_OK) return err;
+    err = nvs_set_str(n_nvs_handle, MQTT_URI_KEY, (char*)c_mqtt_config->uri);
+    if(err != ESP_OK) return err;
+    err = nvs_set_str(n_nvs_handle, MQTT_CLIENT_ID_KEY, (char*)c_mqtt_config->client_id);
+    if(err != ESP_OK) return err;
+    err = nvs_set_str(n_nvs_handle, MQTT_USERNAME_KEY, (char*)c_mqtt_config->username);
+    if(err != ESP_OK) return err;
+    err = nvs_set_str(n_nvs_handle, MQTT_PASSWORD_KEY, (char*)c_mqtt_config->password);
+    if(err != ESP_OK) return err;
+
+    err = nvs_commit(n_nvs_handle);
+    if(err != ESP_OK) return err;
+
+    nvs_close(n_nvs_handle);
+    return ESP_OK;
 }
+
+esp_err_t read_mqtt_config_from_nvs(c_mqtt_config_t* c_mqtt_config){
+
+    c_mqtt_config = c_mqtt_config;
+
+    nvs_handle n_nvs_handle;
+    esp_err_t err;
+    size_t len;
+
+    err = nvs_open(WIFI_CONFIG_NAMESPACE, NVS_READONLY, &n_nvs_handle);
+    if(err != ESP_OK  && err != ESP_ERR_NVS_NOT_FOUND) return err;
+
+    err = nvs_get_str(n_nvs_handle, MQTT_HOST_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_HOST_KEY, c_mqtt_config->host, &len);
+    err = nvs_get_str(n_nvs_handle, MQTT_PORT_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_PORT_KEY, c_mqtt_config->port, &len);
+    err = nvs_get_str(n_nvs_handle, MQTT_URI_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_URI_KEY, c_mqtt_config->uri, &len);
+    err = nvs_get_str(n_nvs_handle, MQTT_CLIENT_ID_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_CLIENT_ID_KEY, c_mqtt_config->client_id, &len);
+    err = nvs_get_str(n_nvs_handle, MQTT_USERNAME_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_USERNAME_KEY, c_mqtt_config->username, &len);
+    err = nvs_get_str(n_nvs_handle, MQTT_PASSWORD_KEY, NULL, &len);
+    if(err != ESP_OK) return err;
+    nvs_get_str(n_nvs_handle, MQTT_PASSWORD_KEY, c_mqtt_config->password, &len);
+
+    return ESP_OK;
+}
+
+
+
+// void get_aliyun_dev_meta_info(char* buf, iotx_dev_meta_info_t* iotx_dev_meta_info, iotx_mqtt_region_types_t* region){
+//     // uint8_t* src_data = NULL;
+//     // int len = 0;
+// }
 
 
 /**

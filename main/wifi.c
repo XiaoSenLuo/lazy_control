@@ -104,7 +104,7 @@ static void setup_ap(void){
             .ssid_len = strlen(ap_ssid),
             .password = "",
             .authmode = WIFI_AUTH_WPA2_PSK,
-            .max_connection = 1,
+            .max_connection = 3,
         },
     };
     strcpy((char*)ap_config.ap.ssid, ap_ssid);
@@ -129,7 +129,7 @@ static void setup_ap_sta(char* sta_ssid, char* sta_password){
             .ssid_len = strlen(ap_ssid),
             .password = "",
             .authmode = WIFI_AUTH_WPA2_PSK,
-            .max_connection = 1
+            .max_connection = 3
         }
     };
     if(sta_ssid != NULL) memcpy(ap_sta_config.sta.ssid, sta_ssid, strlen(sta_ssid));
@@ -156,6 +156,7 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
     case SYSTEM_EVENT_STA_CONNECTED:
     // ESP_LOGI(TAG, "SYSTEM_EVENT_STA_CONNECTED");
         is_connected = true;
+        ap_start  = false;
         // delete_wifi_reconnect_task();
         xEventGroupClearBits(wifi_event_group, WIFI_SCAN_START_BIT);
         xEventGroupClearBits(wifi_event_group, WIFI_DISCONNECT_BIT);
@@ -187,6 +188,7 @@ static esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
         }else{                                //达到最大重连次数
             delete_mqtt_connect_to_broker_task();
             create_wifi_scan_task(NULL, 5);
+            wifi_connect_retry = WIFI_CONNECT_RETRY;
             xEventGroupSetBits(wifi_event_group, WIFI_SCAN_START_BIT);
             // ESP_ERROR_CHECK(esp_wifi_stop());
             // create_wifi_reconnect_task(NULL, 5);
@@ -299,6 +301,7 @@ void initialise_wifi(void *arg)
     size_t cfg_size = sizeof(wifi_config_t);
     err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
     if(err == ESP_OK){
+        ESP_LOGI(TAG, "read wifi config:\r\n    ssid:%s, password:%s", sta_wifi_cfg.sta.ssid, sta_wifi_cfg.sta.password);
         setup_sta((char*)sta_wifi_cfg.sta.ssid, (char*)sta_wifi_cfg.sta.password);
         // wifi_config_t sta_config = {
         //     .sta = {
@@ -392,7 +395,7 @@ void wifi_scan_task(void* pvParamters){
             if(ap_numbers != 0){
 #if(NVS_DATA == 1)
                 size_t cfg_size = sizeof(wifi_config_t);
-                wifi_config_t sta_wifi_cfg;
+                // wifi_config_t sta_wifi_cfg;
                 err = read_data_from_nvs(WIFI_CONFIG_NAMESPACE, WIFI_CONFIG_KEY, &sta_wifi_cfg, cfg_size);
 #else
                 memset(sta_wifi_cfg.sta.ssid, 0, sizeof(sta_wifi_cfg.sta.ssid));
@@ -400,6 +403,7 @@ void wifi_scan_task(void* pvParamters){
                 err = read_wifi_config_from_nvs(&sta_wifi_cfg);
 #endif
                 if(err == ESP_OK){
+                    ESP_LOGI(TAG, "read wifi config:\r\n    ssid:%s, password:%s", sta_wifi_cfg.sta.ssid, sta_wifi_cfg.sta.password);
                     for(ap_index = 0; ap_index < ap_numbers; ap_index++){    
                         ESP_LOGI(TAG, "find ap's ssid(%d/%d):%s", ap_index + 1, ap_numbers, ap_record_list[ap_index].ssid);
                         if(strcmp((char*)ap_record_list[ap_index].ssid, (char*)sta_wifi_cfg.sta.ssid) == 0){  // 扫描到目标wifi

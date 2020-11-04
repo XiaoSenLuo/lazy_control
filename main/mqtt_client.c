@@ -40,6 +40,8 @@ TaskHandle_t mqtt_event_recv_task_handle = NULL;
 static QueueHandle_t q_mqtt_client_event = NULL;
 static uint8_t mqtt_connecct_retry = MQTT_CONNECT_RETRY;
 
+c_mqtt_config_t c_mqtt_cfg;
+
 void get_mqtt_config_from_url(char* buf, c_mqtt_config_t* mqtt_cfg){
     uint8_t* src_data = NULL;
     int len = 0;
@@ -116,7 +118,7 @@ esp_err_t save_mqtt_config_to_nvs(c_mqtt_config_t* c_mqtt_config){
 
     err = nvs_set_str(n_nvs_handle, MQTT_HOST_KEY, (char*)c_mqtt_config->host);
     if(err != ESP_OK) return err;
-    err = nvs_set_str(n_nvs_handle, MQTT_PORT_KEY, (char*)c_mqtt_config->port);
+    err = nvs_set_u32(n_nvs_handle, MQTT_PORT_KEY, c_mqtt_config->port);
     if(err != ESP_OK) return err;
     err = nvs_set_str(n_nvs_handle, MQTT_URI_KEY, (char*)c_mqtt_config->uri);
     if(err != ESP_OK) return err;
@@ -148,18 +150,22 @@ esp_err_t read_mqtt_config_from_nvs(c_mqtt_config_t* c_mqtt_config){
     err = nvs_get_str(n_nvs_handle, MQTT_HOST_KEY, NULL, &len);
     if(err != ESP_OK) return err;
     nvs_get_str(n_nvs_handle, MQTT_HOST_KEY, c_mqtt_config->host, &len);
-    err = nvs_get_str(n_nvs_handle, MQTT_PORT_KEY, NULL, &len);
+
+    err = nvs_get_u32(n_nvs_handle, MQTT_PORT_KEY, &c_mqtt_config->port);
     if(err != ESP_OK) return err;
-    nvs_get_str(n_nvs_handle, MQTT_PORT_KEY, c_mqtt_config->port, &len);
+
     err = nvs_get_str(n_nvs_handle, MQTT_URI_KEY, NULL, &len);
     if(err != ESP_OK) return err;
     nvs_get_str(n_nvs_handle, MQTT_URI_KEY, c_mqtt_config->uri, &len);
+
     err = nvs_get_str(n_nvs_handle, MQTT_CLIENT_ID_KEY, NULL, &len);
     if(err != ESP_OK) return err;
     nvs_get_str(n_nvs_handle, MQTT_CLIENT_ID_KEY, c_mqtt_config->client_id, &len);
+
     err = nvs_get_str(n_nvs_handle, MQTT_USERNAME_KEY, NULL, &len);
     if(err != ESP_OK) return err;
     nvs_get_str(n_nvs_handle, MQTT_USERNAME_KEY, c_mqtt_config->username, &len);
+
     err = nvs_get_str(n_nvs_handle, MQTT_PASSWORD_KEY, NULL, &len);
     if(err != ESP_OK) return err;
     nvs_get_str(n_nvs_handle, MQTT_PASSWORD_KEY, c_mqtt_config->password, &len);

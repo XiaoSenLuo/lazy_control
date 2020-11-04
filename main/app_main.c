@@ -234,90 +234,91 @@ static void spiffs_initialise(void){
         char* text = NULL;
         text = malloc(512);
         if(text != NULL){
-            strcpy(text, "<!DOCTYPE HTML><html lang=\"en\"><head><title>ESP8266</title></head><body>");
-            strcat(text, "<p>");
+            memset(text, 0, 512);
+            // strcpy(text, "<!DOCTYPE HTML><html lang=\"en\"><head><title>ESP8266</title></head><body>");
+            strcat(text, "<p style=\"color:#000;font-size:15px;letter-spacing:.5px;text-transform:none;\">");
             char* cJ_string = NULL;
             cJ_string = cJ_create_chip_info(&e_chip_info); 
             strcat(text, cJ_string);
             free(cJ_string);
             strcat(text, "</p>");
-            strcat(text, "</body></html>");
+            // strcat(text, "</body></html>");
             fwrite(text, 1, strlen(text), chip_info_file);
         }
         free(text);
         fclose(chip_info_file);
     }
 
-    memset(file_path, 0, 32);
-    strcpy(file_path, HTTPD_WEB_ROOT);
-    strcat(file_path, "/index.html");
+    // memset(file_path, 0, 32);
+    // strcpy(file_path, HTTPD_WEB_ROOT);
+    // strcat(file_path, "/index.html");
 
-    get_file_size(file_path, &fs, &err);
-    // ESP_LOGI("## SPIFFS ##", "test.txt file size:%d, err:%d", fs, err);
-    if(err != 0){
+    // get_file_size(file_path, &fs, &err);
+    // // ESP_LOGI("## SPIFFS ##", "test.txt file size:%d, err:%d", fs, err);
+    // if(err != 0){
 
-    }else{
-        char* html;
-        size_t len = 0;
-        int remain = fs;
-        if(fs > 512){
-            len = 512;
-        }else{
-            len = fs;
-        }
-        html = malloc(len);
-        if(html != NULL){
-            FILE* index = NULL;
-            index = fopen(file_path, "r");
-            if(index == NULL) return;
-            // ESP_LOGI("## SPIFFS ##", "file open");
-            remain = fs;
-            size_t read_size;
+    // }else{
+    //     char* html;
+    //     size_t len = 0;
+    //     int remain = fs;
+    //     if(fs > 512){
+    //         len = 512;
+    //     }else{
+    //         len = fs;
+    //     }
+    //     html = malloc(len);
+    //     if(html != NULL){
+    //         FILE* index = NULL;
+    //         index = fopen(file_path, "r");
+    //         if(index == NULL) return;
+    //         // ESP_LOGI("## SPIFFS ##", "file open");
+    //         remain = fs;
+    //         size_t read_size;
 
-            // 读取行
-            char des_str[64];
-            memset(des_str, 0, 64);
-            uint16_t raw_index = 0, raw_len = 0, des_len = strlen("<div class=\"copy\">");
-            memcpy(des_str, "<div class=\"copy\">", des_len);
-            fpos_t position;
-            while(!feof(index)){ // 未到达结尾
-                memset(html, 0, len);
-                fgets(html, 128, index);
-                raw_len = strlen(html);
-                raw_index = 0;
-                while((raw_index + des_len) <= raw_len){
-                    if(memcmp(&html[raw_index], des_str, des_len) == 0){
-                        fgetpos(index, &position);
-                        printf("find: %s\r\n", des_str);
-                        break;
-                    }else{
-                    }
-                    ++raw_index;
-                }
-            }
+    //         // 读取行
+    //         char des_str[64];
+    //         memset(des_str, 0, 64);
+    //         uint16_t raw_index = 0, raw_len = 0, des_len = strlen("<div class=\"copy\">");
+    //         memcpy(des_str, "<div class=\"copy\">", des_len);
+    //         fpos_t position;
+    //         while(!feof(index)){ // 未到达结尾
+    //             memset(html, 0, len);
+    //             fgets(html, 128, index);
+    //             raw_len = strlen(html);
+    //             raw_index = 0;
+    //             while((raw_index + des_len) <= raw_len){
+    //                 if(memcmp(&html[raw_index], des_str, des_len) == 0){
+    //                     fgetpos(index, &position);
+    //                     printf("find: %s\r\n", des_str);
+    //                     break;
+    //                 }else{
+    //                 }
+    //                 ++raw_index;
+    //             }
+    //         }
             
 
-            // while (remain > 0){   // 读取文件内容
-            //     memset(html, 0, len);
-            //     read_size = fread(html, 1, len, index);
-            //     remain = remain - read_size * sizeof(char);
-            //     if(read_size < len){
-            //         if(feof(index)){
-            //             html[read_size*sizeof(char)] = '\0';
-            //             // printf("%s", html);
-            //             break;
-            //         }
-            //     }
-            //     html[read_size*sizeof(char)] = '\0';
-            //     // printf("%s", html);
-            // }
-            // ESP_LOGI("## SPIFFS ##", "file read");
-            fclose(index);
-            free(html);
-        }else{
-            free(html);
-        }
-    }
+    //         // while (remain > 0){   // 读取文件内容
+    //         //     memset(html, 0, len);
+    //         //     read_size = fread(html, 1, len, index);
+    //         //     remain = remain - read_size * sizeof(char);
+    //         //     if(read_size < len){
+    //         //         if(feof(index)){
+    //         //             html[read_size*sizeof(char)] = '\0';
+    //         //             // printf("%s", html);
+    //         //             break;
+    //         //         }
+    //         //     }
+    //         //     html[read_size*sizeof(char)] = '\0';
+    //         //     // printf("%s", html);
+    //         // }
+    //         // ESP_LOGI("## SPIFFS ##", "file read");
+    //         fclose(index);
+    //         free(html);
+    //     }else{
+    //         free(html);
+    //     }
+    // }
     free(file_path);
 }
 static void heap_info(void){
@@ -503,8 +504,7 @@ static void restart_chip_task(void* pvParameters){
 }
 
 void app_main()
-{   
-    // vTaskDelay(1000 / portTICK_PERIOD_MS);
+{
     
     phripherals_initialise();    //初始化外设
     
@@ -555,6 +555,8 @@ void app_main()
 
     xTaskCreate(create_fota_update_task, "create_fota_update_task", 1024, NULL, 6, NULL);   // 创建 OTA 更新任务
     // initialise_wifi(NULL);     // 初始化 WIFI
+    
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     create_wifi_scan_task(NULL, 5);    // 扫描wifi并连接
 

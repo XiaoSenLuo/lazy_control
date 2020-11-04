@@ -1,0 +1,27 @@
+{
+    "chip_info":{
+        "base_ip":null
+    },
+    "wifi":{
+        "ssid":null,
+        "password":null,
+        "authmode":null
+    },
+    "mqtt":[
+        {
+            "config":{
+                "host":null,
+                "port":0,
+                "uri":null,
+                "client_id":null,
+                "user_name":null,
+                "password":null
+            }
+        },
+        {
+            "topic":[
+                
+            ]
+        }
+    ]
+}

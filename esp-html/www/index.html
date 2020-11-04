@@ -4,8 +4,6 @@
       <title>ESP8266</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <meta charset="UTF-8" />
-      <meta name="keywords" content="Item Order Form Responsive Widget,Login form widgets, Sign up Web forms , Login signup Responsive web form,Flat Pricing table,Flat Drop downs,Registration Forms,News letter Forms,Elements"
-         />
       <script>
          addEventListener("load", function () {
          	setTimeout(hideURLbar, 0);
@@ -18,16 +16,115 @@
       <link rel="stylesheet" href="css/style.css" type="text/css" media="all" />
    </head>
    <body>
-      <h1 class="header-w3ls"><a href="/">Index 首页</a></h1>
+      <!-- <h1 class="header-w3ls"><a href="/">Index 首页</a></h1>
       <h1 class="header-w3ls"><a href="/html?page=1">Chip Info</a></h1>
       <h1 class="header-w3ls"><a href="/html?page=2">WiFi Config</a></h1>
       <h1 class="header-w3ls"><a href="/html?page=3">MQTT Broker Config</a></h1>
       <h1 class="header-w3ls"><a href="/html?page=4">Aliyun Iot</a></h1>
-      <h1 class="header-w3ls"><a href="/html?page=5">OTA</a></h1>
-      <div class="copy">
-         <p>&copy; 2018 Item Order Form. All rights reserved | Design by
-            <a href="http://w3layouts.com">W3layouts</a>
-         </p>
+      <h1 class="header-w3ls"><a href="/html?page=5">OTA</a></h1> -->
+      <h1 class="header-w3ls">Chip Info</a></h1>
+      <div class="porduct-order-agile">
+          <iframe marginwidth=0  marginheiht=0 width="100%"  height=100 src="/html?page=1"  scrolling="yes" frameborder="yes"></iframe>
       </div>
+
+      <h1 class="header-w3ls">WiFi Config</h1>
+      <div class="porduct-order-agile">
+         <form action="/save?page=1" method="post">
+            <div class="form-group">
+               <p>SSID</p>
+               <input type="text" name="wifi_ssid" value="" placeholder="" required="">
+            </div>
+            <div class="form-group">
+               <p>Password </p>
+               <input type="password" name="wifi_passwd" value="" placeholder="">
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+         </form>
+      </div>
+
+      <h1 class="header-w3ls">MQTT Config</h1>
+      <div class="porduct-order-agile">
+         <form action="/save?page=2" method="post">
+            <div class="main">
+               <div class="form-left-to-w3l">
+                  <p>MQTT Broker Host:</p>
+                  <input type="text" name="mqtt_host" placeholder="" required="">
+               </div>
+               <div class="form-left-to-w3l">
+                  <p>MQTT Broker Port:</p>
+                  <input type="number" name="mqtt_port" placeholder="1883" required="">
+               </div>
+            </div>
+            <div class="form-group">
+               <p>MQTT Broker Uri:</p>
+               <input type="text" name="mqtt_uri" placeholder="/">
+            </div>
+            <div class="form-group">
+               <p>MQTT Broker Username:</p>
+               <input type="text" name="mqtt_username" placeholder="User">
+            </div>
+            <div class="form-group">
+               <p>MQTT Broker Password:</p>
+               <input type="password" name="mqtt_passwd" placeholder="">
+            </div>
+            <div class="main">
+               <div class="form-left-to-w3l">
+                  <p>MQTT Client ID:</p>
+                  <input type="text" name="mqtt_client_id" placeholder="" required="">
+                  <div class="clear"></div>
+               </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+         </form>
+      </div>
+
+      <h1 class="header-w3ls">MQTT Topic Config</h1>
+      <div class="porduct-order-agile">
+         <form action="/save?page=3" method="post">
+            <div class="form-group">
+               <p>Topic</p>
+               <input type="text" name="mqtt_topic" placeholder="#" required="">
+            </div>
+            <div class="main">
+               <div class="form-left-to-w3l">
+                  <p>QoS</p>
+                  <select class="form-control buttom" name="topic_qos">
+                     <option value="0">QoS 0:At most once</option>
+                     <option value="1">QoS 1:At least once</option>
+                     <option value="2">QoS 2:Exactly once</option>
+                  </select>
+               </div>
+               <div class="form-left-to-w3l">
+                  <p>Type</p>
+                  <select class="form-control buttom" name="topic_type">
+                     <option value="0">Subscribe</option>
+                     <option value="1">Publish</option>
+                     <option value="2">All</option>
+                  </select>
+               </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+         </form>
+      </div>
+
+      <h1 class="header-w3ls">FOTA</h1>
+      <div class="porduct-order-agile">
+         <form action="/save?page=4" method="post">
+            <div class="form-group">
+               <p>FOTA Server Host</p>
+               <input type="text" name="fota_server_host" value="" placeholder="127.0.0.1" required="">
+            </div>
+            <div class="form-group">
+               <p>Port </p>
+               <input type="text" name="fota_server_port" value="" placeholder="80" required="">
+            </div>
+            <div class="form-group">
+               <p>FOTA 文件 </p>
+               <input type="text" name="fota_file" value="" placeholder="/fota_app.bin" required="">
+            </div>
+            <button type="submit" class="btn btn-primary">Update</button>
+         </form>
+      </div>
+
    </body>
 </html>

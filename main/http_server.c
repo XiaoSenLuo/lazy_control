@@ -282,8 +282,8 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                     if (httpd_query_key_value(query_buf, "page", param, sizeof(param)) == ESP_OK) {
                         ESP_LOGI(TAG, "Found URL query parameter => page=%s", param);
                         string2Int(param, &save_page);
-                        c_mqtt_config_t c_mqtt_cfg;
-
+                        // c_mqtt_config_t c_mqtt_cfg;
+                        wifi_config_t sta_wifi_cfg;
                         size_t cfg_size = 0;
                         switch(save_page){
                             case 0:
@@ -302,7 +302,7 @@ static esp_err_t http_post_handler(httpd_req_t *req)
 #endif
                                 if(ESP_OK == err){
                                     save_status |= (0x01 << save_page);
-                                    // restart_chip();
+                                    restart_chip();
                                 }else{
                                     save_status &= (~(0x01 << save_page));
                                 }
@@ -317,18 +317,22 @@ static esp_err_t http_post_handler(httpd_req_t *req)
                                 if(ESP_OK == err){
                                     save_status |= (0x01 << save_page);
                                     ESP_LOGI("## HTTPD Config MQTT ##", "MQTT Config Save Success!");
+                                    restart_chip();
                                 }else{
                                     ESP_LOGE("## HTTPD Config MQTT ##", "MQTT Config Save Failure ERROR Code:%d", err);
                                     save_status &= (~(0x01 << save_page));
                                 }
                             break;
-                            case 3: // OTA
+                            case 3:   
+
+                            break;
+                            case 4: // OTA
                                 get_fota_config_from_url(buf, &ota_cfg);
                                 ESP_LOGI(TAG, "OTA Server:%s | Port: %s | File:%s",ota_cfg.server_host, ota_cfg.server_port, ota_cfg.ota_file);
                                 
                                 is_ota = 1;
                             break;
-                            case 4:  // Aliyun MQTT Sign Config
+                            case 5:  // Aliyun MQTT Sign Config
 
                             break;
                             default:

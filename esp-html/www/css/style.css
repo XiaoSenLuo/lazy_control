@@ -257,7 +257,7 @@ box-sizing: border-box;
 color: #000;
 font-size: 15px;
 letter-spacing: .5px;
-text-transform: capitalize;
+text-transform: none;
 }
 .order-list {
 margin-top: 14px;

@@ -73,7 +73,7 @@ esp_err_t reset_nvs_all(void);
 void get_fota_config_from_url(char* buf, fota_config_t* fota_cfg);
 
 
-extern wifi_config_t sta_wifi_cfg;
+
 
 #define WIFI_CONFIG_NAMESPACE                        "wifi_config"
 #define WIFI_CONFIG_KEY                              "wifi_config"
@@ -123,6 +123,7 @@ typedef struct {
     char password[64];
 }c_mqtt_config_t;
 
+extern c_mqtt_config_t c_mqtt_cfg;
 
 typedef struct {
     char topic[128];

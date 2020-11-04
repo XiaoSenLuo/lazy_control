@@ -55,8 +55,6 @@ extern "C"{
 
 #define NVS_DATA    0            // 数据保存格式
 
-#define GPIO_0x00                                     GPIO_NUM_14
-#define GPIO_0x01                                     GPIO_NUM_16
 
 void restart_chip(void);
 
@@ -168,8 +166,16 @@ void notice_http_server_task(bool en);
 
 
 // LEDC
+#define MODE_ESP12   1
+#define MODE_ESP01   0
+
+#if(MODE_ESP12 == 1) && (MODE_ESP01 == 0)
 
 #define LEDC_TEST_CH_NUM       (4)
+
+#elif(MODE_ESP12 == 0) && (MODE_ESP01 == 1)
+#define LEDC_TEST_CH_NUM       (2)
+#endif
 
 extern int ledc_gpio_num[LEDC_TEST_CH_NUM];
 

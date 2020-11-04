@@ -9,20 +9,6 @@
 static const char *TAG="## LED CONTROL ##";
 
 
-#define LEDC_HS_TIMER          LEDC_TIMER_0
-#define LEDC_HS_MODE           LEDC_HIGH_SPEED_MODE
-#define LEDC_HS_CH0_GPIO       (4)
-#define LEDC_HS_CH0_CHANNEL    LEDC_CHANNEL_0
-#define LEDC_HS_CH1_GPIO       (5)
-#define LEDC_HS_CH1_CHANNEL    LEDC_CHANNEL_1
-
-#define LEDC_LS_TIMER          LEDC_TIMER_1
-#define LEDC_LS_MODE           LEDC_LOW_SPEED_MODE
-#define LEDC_LS_CH2_GPIO       (14)
-#define LEDC_LS_CH2_CHANNEL    LEDC_CHANNEL_2
-#define LEDC_LS_CH3_GPIO       (16)
-#define LEDC_LS_CH3_CHANNEL    LEDC_CHANNEL_3
-
 #define LEDC_TEST_DUTY         (4096)
 #define LEDC_TEST_FADE_TIME    (300)
 
@@ -31,18 +17,29 @@ static const char *TAG="## LED CONTROL ##";
 
 #define LEDC_CONFIG_NAMESPACE               "ledc_config"
 
+
+#if(MODE_ESP12 == 1) && (MODE_ESP01 == 0)
 static const char* nvs_ledc_config_key[LEDC_TEST_CH_NUM] = {
     "channel_0",
     "channel_1",
     "channel_2",
     "channel_3"
 };
+int ledc_gpio_num[LEDC_TEST_CH_NUM] = {12, 13, 14, 16};
+#elif(MODE_ESP12 == 0) && (MODE_ESP01 == 1)
+static const char* nvs_ledc_config_key[LEDC_TEST_CH_NUM] = {
+    "channel_0",
+    "channel_1"
+};
+int ledc_gpio_num[LEDC_TEST_CH_NUM] = {0, 2};
+
+#endif
 
 static TaskHandle_t led_control_task_handle = NULL;
 static QueueHandle_t q_led_brightness = NULL;
 
 static ledc_channel_config_t ledc_channel[LEDC_TEST_CH_NUM];
-int ledc_gpio_num[LEDC_TEST_CH_NUM] = {12, 13, 14, 16};
+
 static int ledc_fade_time = 1000;
 static int ledc_freq_hz = 512;
 
@@ -88,7 +85,7 @@ void ledc_initialise(void){
         ledc_channel[ch].gpio_num = ledc_gpio_num[ch];
         ledc_channel[ch].channel = LEDC_CHANNEL_0 + ch;
         ledc_channel[ch].duty = 0;
-        ledc_channel[ch].speed_mode = LEDC_LS_MODE;
+        ledc_channel[ch].speed_mode = LEDC_LOW_SPEED_MODE;
         ledc_channel_config(&ledc_channel[ch]);
     }
 

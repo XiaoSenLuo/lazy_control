@@ -337,6 +337,12 @@ void mqtt_event_recv_task(void* parm){
                         case GPIO_NUM_12:
                             set_led_brightness(GPIO_NUM_12, (uint8_t)brightness);
                         break;
+                        case GPIO_NUM_0:
+                            set_led_brightness(GPIO_NUM_0, (uint8_t)brightness);
+                        break;
+                        case GPIO_NUM_2:
+                            set_led_brightness(GPIO_NUM_2, (uint8_t)brightness);
+                        break;
                     }
                     memset(topic_path, 0, sizeof(topic_path));
                     strcpy(topic_path, event->topic);

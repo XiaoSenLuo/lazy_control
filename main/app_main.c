@@ -542,7 +542,7 @@ void app_main()
 
     nvs_initialise();
     
-    xTaskCreate(restart_chip_task, "restart_chip_task", 1024, NULL, 8, NULL);         // 延时重启任务
+    xTaskCreate(restart_chip_task, "restart_chip_task", 1024+256, NULL, 8, NULL);         // 延时重启任务
     xTaskCreate(record_run_time_task, "record_run_time_task", 1024, NULL, 3, NULL);  // 实现快速上电三次重置系统
     
     heap_info();

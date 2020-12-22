@@ -130,9 +130,9 @@ typedef struct {
 }c_mqtt_topic_t;
 
 extern EventGroupHandle_t mqtt_event_group;
-extern const EventBits_t MQTT_CLIENT_START_BIT;
-extern const EventBits_t MQTT_CLIENT_STOP_BIT;
-extern const EventBits_t MQTT_CLIENT_CONNECTED_BIT;
+extern EventBits_t MQTT_CLIENT_START_BIT;
+extern EventBits_t MQTT_CLIENT_STOP_BIT;
+extern EventBits_t MQTT_CLIENT_CONNECTED_BIT;
 
 void get_mqtt_config_from_url(char* buf, c_mqtt_config_t* mqtt_cfg);
 void get_mqtt_topic_from_url(char* buf, c_mqtt_topic_t* c_mqtt_topic);
@@ -149,7 +149,8 @@ extern TaskHandle_t mqtt_connect_to_broker_task_handle;
 void mqtt_connect_to_broker_task(void* parm);
 void create_mqtt_connect_to_broker_task(void * const pvParameters, UBaseType_t uxPriority);
 void delete_mqtt_connect_to_broker_task(void);
-
+void notice_mqtt_client_stop(void);
+void notice_mqtt_client_start(void);
 
 #define HTTPD_WEB_ROOT                             "/c/www"
 

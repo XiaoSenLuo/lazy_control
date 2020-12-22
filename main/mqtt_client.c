@@ -31,9 +31,9 @@ static const char *TAG="## MQTT ##";
 
 esp_mqtt_client_handle_t mqtt_client = NULL;
 EventGroupHandle_t mqtt_event_group = NULL;
-const EventBits_t MQTT_CLIENT_START_BIT = BIT8;
-const EventBits_t MQTT_CLIENT_STOP_BIT = BIT10;
-const EventBits_t MQTT_CLIENT_CONNECTED_BIT = BIT11;
+EventBits_t MQTT_CLIENT_START_BIT = BIT8;
+EventBits_t MQTT_CLIENT_STOP_BIT = BIT10;
+EventBits_t MQTT_CLIENT_CONNECTED_BIT = BIT11;
 TaskHandle_t mqtt_connect_to_broker_task_handle = NULL;
 TaskHandle_t mqtt_event_recv_task_handle = NULL;
 
@@ -270,6 +270,18 @@ end:
     return cJ_print;
 }
 
+void notice_mqtt_client_stop(void){
+    if(mqtt_connect_to_broker_task_handle != NULL){
+        xEventGroupSetBits(mqtt_event_group, MQTT_CLIENT_START_BIT);
+    }
+}
+
+void notice_mqtt_client_start(void){
+    if(mqtt_connect_to_broker_task_handle != NULL){
+        xEventGroupSetBits(mqtt_event_group, MQTT_CLIENT_STOP_BIT);
+    }
+}
+
 void mqtt_event_recv_task(void* parm){
     esp_mqtt_event_handle_t event;
     BaseType_t xReturn = pdFAIL;
@@ -486,45 +498,53 @@ void mqtt_connect_to_broker_task(void* parm){
     esp_err_t err;
     c_mqtt_config_t c_mqtt_cfg;
     uint8_t restart_times = MQTT_CONNECT_RETRY;
+    EventBits_t bits = MQTT_CLIENT_START_BIT;
     while(true){
-        if(mqtt_client != NULL){
-            esp_mqtt_client_stop(mqtt_client);
-            mqtt_client = NULL;
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        memset(c_mqtt_cfg.host, 0, sizeof(c_mqtt_cfg.host));
-        memset(c_mqtt_cfg.uri, 0, sizeof(c_mqtt_cfg.uri));
-        memset(c_mqtt_cfg.client_id, 0, sizeof(c_mqtt_cfg.client_id));
-        memset(c_mqtt_cfg.username, 0, sizeof(c_mqtt_cfg.username));
-        memset(c_mqtt_cfg.password, 0, sizeof(c_mqtt_cfg.password));
-        // err = read_mqtt_config(&c_mqtt_cfg);
-        size_t cfg_size = sizeof(c_mqtt_config_t);
-        err = read_data_from_nvs(MQTT_CONFIG_NAMESPACE, MQTT_CONFIG_KEY, &c_mqtt_cfg, cfg_size);
-        if(ESP_OK == err){
-            // ESP_LOGI("## MQTT ##", "Host:%s Port:%d Username:%s", c_mqtt_cfg.host, c_mqtt_cfg.port, c_mqtt_cfg.username);
-            esp_mqtt_client_config_t mqtt_cfg = {
-                .host = c_mqtt_cfg.host,
-                .event_handle = mqtt_event_handler,
-                .port = c_mqtt_cfg.port,
-                .client_id = c_mqtt_cfg.client_id,
-                .username = c_mqtt_cfg.username,
-                // .user_context = (void *)your_context
-            };
-            ESP_LOGI("## MQTT ##", "Host:%s Port:%d Username:%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.username);
-            // ESP_LOGI("## MQTT ##", "MQTT Client connecting to broker!");
-            mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-            // mqtt_client = client;
-            restart_times -= 1;
-            if(restart_times == 0){
-                // vTaskSuspend(NULL);
-                restart_times = MQTT_CONNECT_RETRY;
-                esp_restart();  // 重启
+        if(bits == MQTT_CLIENT_START_BIT){
+            if(mqtt_client != NULL){
+                esp_mqtt_client_destroy(mqtt_client);
+                mqtt_client = NULL;
             }
-            esp_mqtt_client_start(mqtt_client);
-        }else{
-            ESP_LOGE("## MQTT ##", "Read MQTT Config Failure ERROR Code: %d", err);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            memset(c_mqtt_cfg.host, 0, sizeof(c_mqtt_cfg.host));
+            memset(c_mqtt_cfg.uri, 0, sizeof(c_mqtt_cfg.uri));
+            memset(c_mqtt_cfg.client_id, 0, sizeof(c_mqtt_cfg.client_id));
+            memset(c_mqtt_cfg.username, 0, sizeof(c_mqtt_cfg.username));
+            memset(c_mqtt_cfg.password, 0, sizeof(c_mqtt_cfg.password));
+            // err = read_mqtt_config(&c_mqtt_cfg);
+            size_t cfg_size = sizeof(c_mqtt_config_t);
+            err = read_data_from_nvs(MQTT_CONFIG_NAMESPACE, MQTT_CONFIG_KEY, &c_mqtt_cfg, cfg_size);
+            if(ESP_OK == err){
+                // ESP_LOGI("## MQTT ##", "Host:%s Port:%d Username:%s", c_mqtt_cfg.host, c_mqtt_cfg.port, c_mqtt_cfg.username);
+                esp_mqtt_client_config_t mqtt_cfg = {
+                    .host = c_mqtt_cfg.host,
+                    .event_handle = mqtt_event_handler,
+                    .port = c_mqtt_cfg.port,
+                    .client_id = c_mqtt_cfg.client_id,
+                    .username = c_mqtt_cfg.username,
+                    // .user_context = (void *)your_context
+                };
+                ESP_LOGI("## MQTT ##", "Host:%s Port:%d Username:%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.username);
+                // ESP_LOGI("## MQTT ##", "MQTT Client connecting to broker!");
+                mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+                // mqtt_client = client;
+                restart_times -= 1;
+                if(restart_times == 0){
+                    // vTaskSuspend(NULL);
+                    restart_times = MQTT_CONNECT_RETRY;
+                    esp_restart();  // 重启
+                }
+                esp_mqtt_client_start(mqtt_client);
+            }else{
+                ESP_LOGE("## MQTT ##", "Read MQTT Config Failure ERROR Code: %d", err);
+            }
         }
-        xEventGroupWaitBits(mqtt_event_group, MQTT_CLIENT_START_BIT, true, true, portMAX_DELAY);
+        bits = xEventGroupWaitBits(mqtt_event_group, MQTT_CLIENT_START_BIT | MQTT_CLIENT_STOP_BIT, true, false, portMAX_DELAY);
+        if(bits == MQTT_CLIENT_STOP_BIT){
+            esp_mqtt_client_destroy(mqtt_client);
+            mqtt_client = NULL;
+            // vTaskDelete(NULL);
+        }
     }
 }
 
@@ -540,6 +560,8 @@ void create_mqtt_connect_to_broker_task(void * const pvParameters, UBaseType_t u
 }
 
 void delete_mqtt_connect_to_broker_task(void){
+    
+    esp_mqtt_client_destroy(mqtt_client);
     if(mqtt_connect_to_broker_task_handle != NULL){
         vTaskDelete(mqtt_connect_to_broker_task_handle);
         mqtt_connect_to_broker_task_handle = NULL;

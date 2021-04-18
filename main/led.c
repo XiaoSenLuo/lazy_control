@@ -23,9 +23,9 @@ static const char* nvs_ledc_config_key[LEDC_TEST_CH_NUM] = {
     "channel_0",
     "channel_1",
     "channel_2",
-    "channel_3"
+    "channel_3",
 };
-int ledc_gpio_num[LEDC_TEST_CH_NUM] = {12, 13, 14, 16};
+int ledc_gpio_num[LEDC_TEST_CH_NUM] = {12, 13, 14, 2};
 #elif(MODE_ESP12 == 0) && (MODE_ESP01 == 1)
 static const char* nvs_ledc_config_key[LEDC_TEST_CH_NUM] = {
     "channel_0",
@@ -44,7 +44,7 @@ static int ledc_fade_time = 1000;
 static int ledc_freq_hz = 512;
 
 void ledc_initialise(void){
-    int ch;
+    int ch = 0;
     /*
      * Prepare and set configuration of timers
      * that will be used by LED Controller
@@ -85,7 +85,7 @@ void ledc_initialise(void){
         ledc_channel[ch].gpio_num = ledc_gpio_num[ch];
         ledc_channel[ch].channel = LEDC_CHANNEL_0 + ch;
         ledc_channel[ch].duty = 0;
-        ledc_channel[ch].speed_mode = LEDC_LOW_SPEED_MODE;
+        ledc_channel[ch].speed_mode = LEDC_HIGH_SPEED_MODE;
         ledc_channel_config(&ledc_channel[ch]);
     }
 

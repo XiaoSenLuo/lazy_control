@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "esp_http_client.h": "c",
+        "http_download.h": "c",
+        "functional": "c"
+    }
+}
